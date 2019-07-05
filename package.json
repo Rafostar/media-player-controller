@@ -1,0 +1,25 @@
+{
+  "name": "media-player-controller",
+  "version": "0.0.1",
+  "description": "Spawn media player app and control playback",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rafostar/media-player-controller.git"
+  },
+  "keywords": [
+    "media",
+    "player",
+    "controller",
+    "mpv"
+  ],
+  "author": "Rafostar",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Rafostar/media-player-controller/issues"
+  },
+  "homepage": "https://github.com/Rafostar/media-player-controller#readme"
+}
