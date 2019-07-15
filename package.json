@@ -1,6 +1,6 @@
 {
   "name": "media-player-controller",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Spawn media player app and control playback",
   "main": "index.js",
   "scripts": {
