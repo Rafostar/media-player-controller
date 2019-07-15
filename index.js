@@ -5,7 +5,6 @@ const playersArray = fs.readdirSync(__dirname + '/players');
 
 const defaults = {
 	media: null,
-	websocket: null,
 	player: 'mpv',
 	ipcPath: '/tmp/cast-socket'
 };
@@ -17,29 +16,29 @@ module.exports = class PlayerController
 	constructor(options)
 	{
 		if(!(options instanceof Object)) options = {};
-		const opts = { ...defaults, ...options };
+		this.opts = { ...defaults, ...options };
 
-		if(typeof opts.media !== 'string')
+		if(typeof this.opts.media !== 'string')
 			return console.error('No media source provided!');
 
-		if(typeof opts.websocket !== 'string')
-			return console.error('No websocket path provided!');
+		if(typeof this.opts.ipcPath !== 'string')
+			return console.error('No IPC socket path provided!');
 
 		this.process = null;
-		this.player = players[opts.player] || players[defaults.player];
+		this.player = players[this.opts.player] || players[defaults.player];
 
 		this.launch = (cb) =>
 		{
 			cb = cb || noop;
 
 			const spawnOpts = { stdio: ['ignore', 'pipe', 'ignore'], detached: true };
-			const spawnArgs = this.player.getSpawnArgs(opts);
+			const spawnArgs = this.player.getSpawnArgs(this.opts);
 
-			try { this.process = spawn(opts.player, spawnArgs, spawnOpts); }
+			try { this.process = spawn(this.opts.player, spawnArgs, spawnOpts); }
 			catch(err) { return cb(err); }
 
 			this.process.once('close', () => this.process = null);
-			this.process.stdout.once('data', () => this.player.init(opts));
+			this.process.stdout.once('data', () => this.player.init(this.opts));
 
 			return cb(null);
 		}
