@@ -6,6 +6,7 @@ const playersArray = fs.readdirSync(__dirname + '/players');
 const defaults = {
 	media: null,
 	player: 'mpv',
+	playerArgs: [''],
 	ipcPath: '/tmp/cast-socket'
 };
 

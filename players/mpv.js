@@ -17,7 +17,10 @@ var mpv =
 
 	getSpawnArgs: (opts) =>
 	{
-		return ['--no-ytdl', '--fullscreen', `--input-ipc-server=${opts.ipcPath}`, opts.media];
+		if(!Array.isArray(opts.playerArgs)) opts.playerArgs = [''];
+		var presetArgs = [`--input-ipc-server=${opts.ipcPath}`, opts.media];
+
+		return [ ...opts.playerArgs, ...presetArgs ];
 	},
 
 	command: (params, cb) =>
@@ -86,6 +89,29 @@ var mpv =
 		cb = cb || noop;
 
 		mpv.command(['set_property', 'volume', value], (err) =>
+		{
+			if(err) return cb(err);
+			return cb(null);
+		});
+	},
+
+	setRepeat: (isEnabled, cb) =>
+	{
+		cb = cb || noop;
+
+		switch(isEnabled)
+		{
+			case true:
+			case 'inf':
+			case 'yes':
+				isEnabled = 'inf';
+				break;
+			default:
+				isEnabled = 'no';
+				break;
+		}
+
+		mpv.command(['set_property', 'loop', isEnabled], (err) =>
 		{
 			if(err) return cb(err);
 			return cb(null);
