@@ -62,6 +62,17 @@ var mpv =
 		});
 	},
 
+	cyclePause: (cb) =>
+	{
+		cb = cb || noop;
+
+		mpv.command(['cycle', 'pause'], (err) =>
+		{
+			if(err) return cb(err);
+			return cb(null);
+		});
+	},
+
 	load: (media, cb) =>
 	{
 		cb = cb || noop;
@@ -112,6 +123,72 @@ var mpv =
 		}
 
 		mpv.command(['set_property', 'loop', isEnabled], (err) =>
+		{
+			if(err) return cb(err);
+			return cb(null);
+		});
+	},
+
+	cycleVideo: (cb) =>
+	{
+		cb = cb || noop;
+
+		mpv.command(['cycle', 'video'], (err) =>
+		{
+			if(err) return cb(err);
+			return cb(null);
+		});
+	},
+
+	cycleAudio: (cb) =>
+	{
+		cb = cb || noop;
+
+		mpv.command(['cycle', 'audio'], (err) =>
+		{
+			if(err) return cb(err);
+			return cb(null);
+		});
+	},
+
+	cycleSubs: (cb) =>
+	{
+		cb = cb || noop;
+
+		mpv.command(['cycle', 'sub'], (err) =>
+		{
+			if(err) return cb(err);
+			return cb(null);
+		});
+	},
+
+	setFullscreen: (isFullscreen, cb) =>
+	{
+		cb = cb || noop;
+
+		switch(isFullscreen)
+		{
+			case false:
+			case 'no':
+				isFullscreen = 'no';
+				break;
+			default:
+				isFullscreen = 'yes';
+				break;
+		}
+
+		mpv.command(['set_property', 'fullscreen', isFullscreen], (err) =>
+		{
+			if(err) return cb(err);
+			return cb(null);
+		});
+	},
+
+	cycleFullscreen: (cb) =>
+	{
+		cb = cb || noop;
+
+		mpv.command(['cycle', 'fullscreen'], (err) =>
 		{
 			if(err) return cb(err);
 			return cb(null);
