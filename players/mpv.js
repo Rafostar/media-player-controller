@@ -162,22 +162,22 @@ var mpv =
 		});
 	},
 
-	setFullscreen: (isFullscreen, cb) =>
+	setFullscreen: (isEnabled, cb) =>
 	{
 		cb = cb || noop;
 
-		switch(isFullscreen)
+		switch(isEnabled)
 		{
 			case false:
 			case 'no':
-				isFullscreen = 'no';
+				isEnabled = 'no';
 				break;
 			default:
-				isFullscreen = 'yes';
+				isEnabled = 'yes';
 				break;
 		}
 
-		mpv.command(['set_property', 'fullscreen', isFullscreen], (err) =>
+		mpv.command(['set_property', 'fullscreen', isEnabled], (err) =>
 		{
 			if(err) return cb(err);
 			return cb(null);
@@ -189,6 +189,31 @@ var mpv =
 		cb = cb || noop;
 
 		mpv.command(['cycle', 'fullscreen'], (err) =>
+		{
+			if(err) return cb(err);
+			return cb(null);
+		});
+	},
+
+	keepOpen: (value, cb) =>
+	{
+		cb = cb || noop;
+
+		switch(value)
+		{
+			case true:
+			case 'yes':
+				value = 'yes';
+				break;
+			case 'always':
+				value = 'always';
+				break;
+			default:
+				value = 'no';
+				break;
+		}
+
+		mpv.command(['set_property', 'keep-open', value], (err) =>
 		{
 			if(err) return cb(err);
 			return cb(null);
