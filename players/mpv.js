@@ -11,6 +11,7 @@ var mpv =
 		mpv.command(['observe_property', 2, 'volume']);
 		mpv.command(['observe_property', 3, 'pause']);
 		mpv.command(['observe_property', 4, 'duration']);
+		mpv.command(['observe_property', 5, 'eof-reached']);
 	},
 
 	socket: null,
