@@ -7,7 +7,7 @@ const defaults = {
 	media: null,
 	player: 'mpv',
 	playerArgs: [''],
-	ipcPath: '/tmp/cast-socket'
+	ipcPath: '/tmp/media-ctl-socket'
 };
 
 var players = importPlayers();
@@ -19,18 +19,18 @@ module.exports = class PlayerController
 		if(!(options instanceof Object)) options = {};
 		this.opts = { ...defaults, ...options };
 
-		if(typeof this.opts.media !== 'string')
-			return console.error('No media source provided!');
-
-		if(typeof this.opts.ipcPath !== 'string')
-			return console.error('No IPC socket path provided!');
-
 		this.process = null;
 		this.player = players[this.opts.player] || players[defaults.player];
 
 		this.launch = (cb) =>
 		{
 			cb = cb || noop;
+
+			if(typeof this.opts.ipcPath !== 'string' && !this.opts.ipcPath.length)
+				return cb(new Error('No IPC socket path provided!'));
+
+			if(typeof this.opts.media !== 'string' && !this.opts.media.length)
+				return cb(new Error('No media source provided!'));
 
 			const spawnOpts = { stdio: ['ignore', 'pipe', 'ignore'], detached: true };
 			const spawnArgs = this.player.getSpawnArgs(this.opts);
