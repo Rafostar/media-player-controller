@@ -32,14 +32,19 @@ module.exports = class PlayerController
 			if(typeof this.opts.media !== 'string' && !this.opts.media.length)
 				return cb(new Error('No media source provided!'));
 
+			this.player.init(this.opts);
+
 			const spawnOpts = { stdio: ['ignore', 'pipe', 'ignore'], detached: true };
 			const spawnArgs = this.player.getSpawnArgs(this.opts);
 
 			try { this.process = spawn(this.opts.player, spawnArgs, spawnOpts); }
 			catch(err) { return cb(err); }
 
-			this.process.once('close', () => this.process = null);
-			this.process.stdout.once('data', () => this.player.init(this.opts));
+			this.process.once('close', () =>
+			{
+				this.process = null;
+				this.player.destroy();
+			});
 
 			return cb(null);
 		}

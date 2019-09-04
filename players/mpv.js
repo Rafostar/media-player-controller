@@ -1,3 +1,4 @@
+const fs = require('fs');
 const net = require('net');
 const noop = () => {};
 
@@ -5,13 +6,41 @@ var mpv =
 {
 	init: (opts) =>
 	{
-		mpv.socket = net.createConnection(opts.ipcPath);
-		mpv.socket.setEncoding('utf8');
-		mpv.command(['observe_property', 1, 'time-pos']);
-		mpv.command(['observe_property', 2, 'volume']);
-		mpv.command(['observe_property', 3, 'pause']);
-		mpv.command(['observe_property', 4, 'duration']);
-		mpv.command(['observe_property', 5, 'eof-reached']);
+		if(!fs.existsSync(opts.ipcPath))
+			fs.writeFileSync(opts.ipcPath);
+
+		var onReady = () =>
+		{
+			mpv.socket.setEncoding('utf8');
+			mpv.command(['observe_property', 1, 'time-pos']);
+			mpv.command(['observe_property', 2, 'volume']);
+			mpv.command(['observe_property', 3, 'pause']);
+			mpv.command(['observe_property', 4, 'duration']);
+			mpv.command(['observe_property', 5, 'eof-reached']);
+		}
+
+		var onError = () =>
+		{
+			if(!mpv.socket.connecting)
+				mpv.socket.connect(opts.ipcPath);
+		}
+
+		mpv.socket = new net.Socket();
+
+		mpv.socket.once('ready', onReady);
+		mpv.socket.on('error', onError);
+
+		var watcher = fs.watch(opts.ipcPath, () =>
+		{
+			watcher.close();
+			mpv.socket.connect(opts.ipcPath);
+		});
+	},
+
+	destroy: () =>
+	{
+		if(mpv.socket && !mpv.socket.destroyed)
+			mpv.socket.destroy();
 	},
 
 	socket: null,
