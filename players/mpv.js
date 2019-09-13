@@ -9,9 +9,8 @@ var mpv =
 		if(!fs.existsSync(opts.ipcPath))
 			fs.writeFileSync(opts.ipcPath);
 
-		var onReady = () =>
+		var onConnect = () =>
 		{
-			mpv.socket.setEncoding('utf8');
 			mpv.command(['observe_property', 1, 'time-pos']);
 			mpv.command(['observe_property', 2, 'volume']);
 			mpv.command(['observe_property', 3, 'pause']);
@@ -26,8 +25,9 @@ var mpv =
 		}
 
 		mpv.socket = new net.Socket();
+		mpv.socket.setEncoding('utf8');
 
-		mpv.socket.once('ready', onReady);
+		mpv.socket.once('connect', onConnect);
 		mpv.socket.on('error', onError);
 
 		var watcher = fs.watch(opts.ipcPath, () =>
@@ -40,7 +40,10 @@ var mpv =
 	destroy: () =>
 	{
 		if(mpv.socket && !mpv.socket.destroyed)
+		{
+			mpv.socket.removeAllListeners('error');
 			mpv.socket.destroy();
+		}
 	},
 
 	socket: null,
