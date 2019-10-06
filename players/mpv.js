@@ -2,53 +2,54 @@ const fs = require('fs');
 const net = require('net');
 const noop = () => {};
 
-var mpv =
+module.exports =
 {
-	init: (opts) =>
+	init: function(opts)
 	{
 		if(!fs.existsSync(opts.ipcPath))
 			fs.writeFileSync(opts.ipcPath);
 
 		var onConnect = () =>
 		{
-			mpv.command(['observe_property', 1, 'time-pos']);
-			mpv.command(['observe_property', 2, 'volume']);
-			mpv.command(['observe_property', 3, 'pause']);
-			mpv.command(['observe_property', 4, 'duration']);
-			mpv.command(['observe_property', 5, 'eof-reached']);
+			this.command(['observe_property', 1, 'time-pos']);
+			this.command(['observe_property', 2, 'volume']);
+			this.command(['observe_property', 3, 'pause']);
+			this.command(['observe_property', 4, 'duration']);
+			this.command(['observe_property', 5, 'eof-reached']);
 		}
 
 		var onError = () =>
 		{
-			if(!mpv.socket.connecting)
-				mpv.socket.connect(opts.ipcPath);
+			if(!this.socket.connecting)
+				this.socket.connect(opts.ipcPath);
 		}
 
-		mpv.socket = new net.Socket();
-		mpv.socket.setEncoding('utf8');
+		this.socket = new net.Socket();
+		this.socket.setEncoding('utf8');
+		this.socket.setNoDelay(true);
 
-		mpv.socket.once('connect', onConnect);
-		mpv.socket.on('error', onError);
+		this.socket.once('connect', onConnect);
+		this.socket.on('error', onError);
 
 		var watcher = fs.watch(opts.ipcPath, () =>
 		{
 			watcher.close();
-			mpv.socket.connect(opts.ipcPath);
+			this.socket.connect(opts.ipcPath);
 		});
 	},
 
-	destroy: () =>
+	destroy: function()
 	{
-		if(mpv.socket && !mpv.socket.destroyed)
+		if(this.socket && !this.socket.destroyed)
 		{
-			mpv.socket.removeAllListeners('error');
-			mpv.socket.destroy();
+			this.socket.removeAllListeners('error');
+			this.socket.destroy();
 		}
 	},
 
 	socket: null,
 
-	getSpawnArgs: (opts) =>
+	getSpawnArgs: function(opts)
 	{
 		if(!Array.isArray(opts.playerArgs)) opts.playerArgs = [''];
 		var presetArgs = [`--input-ipc-server=${opts.ipcPath}`, opts.media];
@@ -56,12 +57,12 @@ var mpv =
 		return [ ...opts.playerArgs, ...presetArgs ];
 	},
 
-	command: (params, cb) =>
+	command: function(params, cb)
 	{
 		cb = cb || noop;
 		var command = null;
 
-		if(!mpv.socket || (mpv.socket && !mpv.socket.writable))
+		if(!this.socket || (this.socket && !this.socket.writable))
 			return cb(new Error('No writable IPC socket! Playback control disallowed'));
 
 		if(!Array.isArray(params))
@@ -70,76 +71,46 @@ var mpv =
 		try { command = JSON.stringify({ command: params }); }
 		catch(err) { return cb(err); }
 
-		mpv.socket.write(command + '\n', (err) => cb(err));
+		this.socket.write(command + '\n', cb);
 	},
 
-	play: (cb) =>
+	play: function(cb)
 	{
 		cb = cb || noop;
-
-		mpv.command(['set_property', 'pause', false], (err) =>
-		{
-			if(err) return cb(err);
-			return cb(null);
-		});
+		this.command(['set_property', 'pause', false], cb);
 	},
 
-	pause: (cb) =>
+	pause: function(cb)
 	{
 		cb = cb || noop;
-
-		mpv.command(['set_property', 'pause', true], (err) =>
-		{
-			if(err) return cb(err);
-			return cb(null);
-		});
+		this.command(['set_property', 'pause', true], cb);
 	},
 
-	cyclePause: (cb) =>
+	cyclePause: function(cb)
 	{
 		cb = cb || noop;
-
-		mpv.command(['cycle', 'pause'], (err) =>
-		{
-			if(err) return cb(err);
-			return cb(null);
-		});
+		this.command(['cycle', 'pause'], cb);
 	},
 
-	load: (media, cb) =>
+	load: function(media, cb)
 	{
 		cb = cb || noop;
-
-		mpv.command(['loadfile', media, 'replace'], (err) =>
-		{
-			if(err) return cb(err);
-			return cb(null);
-		});
+		this.command(['loadfile', media, 'replace'], cb);
 	},
 
-	seek: (position, cb) =>
+	seek: function(position, cb)
 	{
 		cb = cb || noop;
-
-		mpv.command(['seek', position, 'exact+absolute'], (err) =>
-		{
-			if(err) return cb(err);
-			return cb(null);
-		});
+		this.command(['seek', position, 'exact+absolute'], cb);
 	},
 
-	setVolume: (value, cb) =>
+	setVolume: function(value, cb)
 	{
 		cb = cb || noop;
-
-		mpv.command(['set_property', 'volume', value], (err) =>
-		{
-			if(err) return cb(err);
-			return cb(null);
-		});
+		this.command(['set_property', 'volume', value], cb);
 	},
 
-	setRepeat: (isEnabled, cb) =>
+	setRepeat: function(isEnabled, cb)
 	{
 		cb = cb || noop;
 
@@ -148,6 +119,7 @@ var mpv =
 			case true:
 			case 'inf':
 			case 'yes':
+			case 'on':
 				isEnabled = 'inf';
 				break;
 			default:
@@ -155,47 +127,28 @@ var mpv =
 				break;
 		}
 
-		mpv.command(['set_property', 'loop', isEnabled], (err) =>
-		{
-			if(err) return cb(err);
-			return cb(null);
-		});
+		this.command(['set_property', 'loop', isEnabled], cb);
 	},
 
-	cycleVideo: (cb) =>
+	cycleVideo: function(cb)
 	{
 		cb = cb || noop;
-
-		mpv.command(['cycle', 'video'], (err) =>
-		{
-			if(err) return cb(err);
-			return cb(null);
-		});
+		this.command(['cycle', 'video'], cb);
 	},
 
-	cycleAudio: (cb) =>
+	cycleAudio: function(cb)
 	{
 		cb = cb || noop;
-
-		mpv.command(['cycle', 'audio'], (err) =>
-		{
-			if(err) return cb(err);
-			return cb(null);
-		});
+		this.command(['cycle', 'audio'], cb);
 	},
 
-	cycleSubs: (cb) =>
+	cycleSubs: function(cb)
 	{
 		cb = cb || noop;
-
-		mpv.command(['cycle', 'sub'], (err) =>
-		{
-			if(err) return cb(err);
-			return cb(null);
-		});
+		this.command(['cycle', 'sub'], cb);
 	},
 
-	setFullscreen: (isEnabled, cb) =>
+	setFullscreen: function(isEnabled, cb)
 	{
 		cb = cb || noop;
 
@@ -210,25 +163,16 @@ var mpv =
 				break;
 		}
 
-		mpv.command(['set_property', 'fullscreen', isEnabled], (err) =>
-		{
-			if(err) return cb(err);
-			return cb(null);
-		});
+		this.command(['set_property', 'fullscreen', isEnabled], cb);
 	},
 
-	cycleFullscreen: (cb) =>
+	cycleFullscreen: function(cb)
 	{
 		cb = cb || noop;
-
-		mpv.command(['cycle', 'fullscreen'], (err) =>
-		{
-			if(err) return cb(err);
-			return cb(null);
-		});
+		this.command(['cycle', 'fullscreen'], cb);
 	},
 
-	keepOpen: (value, cb) =>
+	keepOpen: function(value, cb)
 	{
 		cb = cb || noop;
 
@@ -246,23 +190,12 @@ var mpv =
 				break;
 		}
 
-		mpv.command(['set_property', 'keep-open', value], (err) =>
-		{
-			if(err) return cb(err);
-			return cb(null);
-		});
+		this.command(['set_property', 'keep-open', value], cb);
 	},
 
-	stop: (cb) =>
+	stop: function(cb)
 	{
 		cb = cb || noop;
-
-		mpv.command(['quit', 0], (err) =>
-		{
-			if(err) return cb(err);
-			return cb(null);
-		});
+		this.command(['quit', 0], cb);
 	}
 }
-
-module.exports = mpv;
