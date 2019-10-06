@@ -40,10 +40,10 @@ module.exports = class PlayerController
 			try { this.process = spawn(this.opts.player, spawnArgs, spawnOpts); }
 			catch(err) { return cb(err); }
 
-			this.process.once('close', () =>
+			this.process.once('exit', () =>
 			{
 				this.process = null;
-				this.player.destroy();
+				this.player.destroy(this.opts);
 			});
 
 			return cb(null);
@@ -69,6 +69,11 @@ module.exports = class PlayerController
 			else
 				return cb(new Error('No open player process found!'));
 		}
+
+		/* Close spawn process on app exit */
+		process.on('SIGINT', () => this.quit());
+		process.on('SIGTERM', () => this.quit());
+		process.on('uncaughtException', () => this.quit());
 	}
 }
 

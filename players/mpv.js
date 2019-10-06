@@ -38,13 +38,16 @@ module.exports =
 		});
 	},
 
-	destroy: function()
+	destroy: function(opts)
 	{
 		if(this.socket && !this.socket.destroyed)
 		{
 			this.socket.removeAllListeners('error');
 			this.socket.destroy();
 		}
+
+		if(fs.existsSync(opts.ipcPath))
+			fs.unlinkSync(opts.ipcPath);
 	},
 
 	socket: null,
