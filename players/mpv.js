@@ -1,53 +1,31 @@
-const fs = require('fs');
 const net = require('net');
+const socketUtil = require('../utils/socket');
 const noop = () => {};
 
 module.exports =
 {
-	init: function(opts)
+	init: function(opts, cb)
 	{
-		if(!fs.existsSync(opts.ipcPath))
-			fs.writeFileSync(opts.ipcPath);
+		cb = cb || noop;
+		this.socket = new net.Socket();
 
-		var onConnect = () =>
+		socketUtil.connectSocket(this.socket, opts, (err) =>
 		{
+			if(err) return cb(err);
+
 			this.command(['observe_property', 1, 'time-pos']);
 			this.command(['observe_property', 2, 'volume']);
 			this.command(['observe_property', 3, 'pause']);
 			this.command(['observe_property', 4, 'duration']);
 			this.command(['observe_property', 5, 'eof-reached']);
-		}
 
-		var onError = () =>
-		{
-			if(!this.socket.connecting)
-				this.socket.connect(opts.ipcPath);
-		}
-
-		this.socket = new net.Socket();
-		this.socket.setEncoding('utf8');
-		this.socket.setNoDelay(true);
-
-		this.socket.once('connect', onConnect);
-		this.socket.on('error', onError);
-
-		var watcher = fs.watch(opts.ipcPath, () =>
-		{
-			watcher.close();
-			this.socket.connect(opts.ipcPath);
+			cb(null);
 		});
 	},
 
 	destroy: function(opts)
 	{
-		if(this.socket && !this.socket.destroyed)
-		{
-			this.socket.removeAllListeners('error');
-			this.socket.destroy();
-		}
-
-		if(fs.existsSync(opts.ipcPath))
-			fs.unlinkSync(opts.ipcPath);
+		socketUtil.removeSocket(this.socket, opts);
 	},
 
 	socket: null,
