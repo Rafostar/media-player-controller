@@ -25,6 +25,7 @@ module.exports = class PlayerController
 		this.launch = (cb) =>
 		{
 			cb = cb || noop;
+			var called = false;
 
 			if(typeof this.opts.ipcPath !== 'string' && !this.opts.ipcPath.length)
 				return cb(new Error('No IPC socket path provided!'));
@@ -32,21 +33,38 @@ module.exports = class PlayerController
 			if(typeof this.opts.media !== 'string' && !this.opts.media.length)
 				return cb(new Error('No media source provided!'));
 
-			this.player.init(this.opts);
+			this.player.init(this.opts, (err) =>
+			{
+				/*
+				Callback on error and success
+				Success only occurs after non-error process spawn
+				*/
+				if(!called)
+				{
+					called = true;
+					return cb(err);
+				}
+			});
 
 			const spawnOpts = { stdio: ['ignore', 'pipe', 'ignore'], detached: true };
 			const spawnArgs = this.player.getSpawnArgs(this.opts);
 
 			try { this.process = spawn(this.opts.player, spawnArgs, spawnOpts); }
-			catch(err) { return cb(err); }
+			catch(err)
+			{
+				/* Callback only on error */
+				if(!called)
+				{
+					called = true;
+					return cb(err);
+				}
+			}
 
 			this.process.once('exit', () =>
 			{
 				this.process = null;
 				this.player.destroy(this.opts);
 			});
-
-			return cb(null);
 		}
 
 		this.quit = (cb) =>
@@ -55,7 +73,7 @@ module.exports = class PlayerController
 
 			if(this.process)
 			{
-				this.player.stop((err) =>
+				this.player.stop(err =>
 				{
 					if(err)
 					{
@@ -70,10 +88,17 @@ module.exports = class PlayerController
 				return cb(new Error('No open player process found!'));
 		}
 
+		const shutdown = (err) =>
+		{
+			if(err) console.error(err);
+
+			this.quit(() => process.exit());
+		}
+
 		/* Close spawn process on app exit */
-		process.on('SIGINT', () => this.quit());
-		process.on('SIGTERM', () => this.quit());
-		process.on('uncaughtException', () => this.quit());
+		process.on('SIGINT', () => shutdown());
+		process.on('SIGTERM', () => shutdown());
+		process.on('uncaughtException', shutdown);
 	}
 }
 
