@@ -1,36 +1,42 @@
-const net = require('net');
-const socketUtil = require('../utils/socket');
 const noop = () => {};
+var previous =
+{
+	position: -1,
+	volume: -1
+}
 
 module.exports =
 {
-	init: function(opts, cb)
+	init: function()
 	{
-		cb = cb || noop;
-		this.socket = new net.Socket();
+		previous.position = -1;
+		previous.volume = -1;
 
-		socketUtil.connectSocket(this.socket, opts, (err) =>
-		{
-			if(err) return cb(err);
-
-			cb(null);
-		});
+		this._setPlaybackInterval();
 	},
 
-	destroy: function(opts)
+	_setPlaybackInterval: function()
 	{
-		socketUtil.removeSocket(this.socket, opts);
+		this.playbackInterval = setInterval(() => this.command(['get_time']), 250);
 	},
 
-	socket: null,
+	cleanup: function()
+	{
+		this._clearPlaybackInterval();
+	},
+
+	_clearPlaybackInterval: function()
+	{
+		clearInterval(this.playbackInterval);
+	},
 
 	getSpawnArgs: function(opts)
 	{
-		if(!Array.isArray(opts.playerArgs)) opts.playerArgs = [''];
+		if(!Array.isArray(opts.args)) opts.args = [''];
 		var presetArgs = ['-I', 'oldrc', '--rc-unix', opts.ipcPath,
-			'--rc-fake-tty', '--rc-show-pos', opts.media];
+			'--rc-fake-tty', opts.media];
 
-		return [ ...opts.playerArgs, ...presetArgs ];
+		return [ ...opts.args, ...presetArgs ];
 	},
 
 	command: function(params, cb)
@@ -38,7 +44,7 @@ module.exports =
 		cb = cb || noop;
 		var command = null;
 
-		if(!this.socket || (this.socket && !this.socket.writable))
+		if(!this.writable)
 			return cb(new Error('No writable IPC socket! Playback control disallowed'));
 
 		if(!Array.isArray(params))
@@ -47,7 +53,7 @@ module.exports =
 		try { command = Object.values(params).join(' '); }
 		catch(err) { return cb(err); }
 
-		this.socket.write(command + '\n', cb);
+		this.write(command + '\n', cb);
 	},
 
 	play: function(cb)
@@ -65,13 +71,16 @@ module.exports =
 	cyclePause: function(cb)
 	{
 		cb = cb || noop;
+		this._clearPlaybackInterval();
 
 		this.command(['is_playing'], (err) =>
 		{
 			if(!err)
 			{
-				this.socket.once('data', (data) =>
+				this.once('data', (data) =>
 				{
+					this._setPlaybackInterval();
+
 					const splitOper = audioData.includes('\r\n') ? '\r\n' : '\n';
 					const dataArr = data.split(splitOper);
 					const isPlaying = dataArr.some(el => el.charAt(0) === '1');
@@ -81,7 +90,10 @@ module.exports =
 				});
 			}
 			else
-				 return cb(err);
+			{
+				this._setPlaybackInterval();
+				return cb(err);
+			}
 		});
 	},
 
@@ -174,15 +186,74 @@ module.exports =
 		return cb(null);
 	},
 
-	stop: function(cb)
+	_playerQuit: function(cb)
 	{
 		cb = cb || noop;
 		this.command(['quit'], cb);
 	},
 
+	_parseSocketData: function(data)
+	{
+		const splitOper = data.includes('\r\n') ? '\r\n' : '\n';
+		var msgArray = data.split(splitOper);
+		msgArray.pop();
+
+		msgArray.forEach(msg =>
+		{
+			if(!isNaN(msg))
+			{
+				var value = parseInt(msg, 10);
+				if(value === previous.position) return;
+				previous.position = value;
+
+				this.emit('playback', { name: 'time-pos', value: value });
+				return;
+			}
+			else if(msg.startsWith('status change:'))
+			{
+				var msgData = msg.substring(msg.indexOf('(') + 1, msg.indexOf(')')).split(':');
+				if(msgData.length !== 2) return;
+
+				var foundName = msgData[0].trim();
+				var foundValue = msgData[1].trim();
+				var eventName, eventValue;
+
+				switch(foundName)
+				{
+					case 'play state':
+						if(foundValue === '2')
+						{
+							eventName = 'pause';
+							eventValue = false;
+						}
+						break;
+					case 'pause state':
+						if(foundValue === '3')
+						{
+							eventName = 'pause';
+							eventValue = true;
+						}
+						break;
+					case 'audio volume':
+						eventName = 'volume';
+						eventValue = parseFloat((foundValue / 256).toFixed(2));
+						if(eventValue === previous.volume) return;
+						previous.volume = eventValue;
+						break;
+					default:
+						break;
+				}
+
+				if(eventName)
+					this.emit('playback', { name: eventName, value: eventValue });
+			}
+		});
+	},
+
 	_actionFromOutData: function(searchString, action, cb)
 	{
 		cb = cb || noop;
+		this._clearPlaybackInterval();
 
 		var outData = '';
 		var resolved = false;
@@ -193,7 +264,9 @@ module.exports =
 			if(outData.includes(`+----[ end of ${searchString} ]`))
 			{
 				resolved = true;
-				this.socket.removeListener('data', onOutData);
+				this.removeListener('data', onOutData);
+				this._setPlaybackInterval();
+
 				parseTracksData(outData, searchString, (err, result) =>
 				{
 					if(err) return cb(err);
@@ -204,7 +277,7 @@ module.exports =
 			}
 		}
 
-		this.socket.on('data', onOutData);
+		this.on('data', onOutData);
 		var timeout = setTimeout(() => onDataError(new Error(`${searchString} data timeout`), 1000));
 
 		const onDataError = (err) =>
@@ -212,7 +285,9 @@ module.exports =
 			if(!resolved)
 			{
 				clearTimeout(timeout);
-				this.socket.removeListener('data', onOutData);
+				this.removeListener('data', onOutData);
+				this._setPlaybackInterval();
+
 				return cb(err);
 			}
 		}

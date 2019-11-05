@@ -4,8 +4,7 @@
   "description": "Spawn media player app and control playback",
   "main": "index.js",
   "files": [
-    "players/",
-    "utils/"
+    "players/"
   ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"

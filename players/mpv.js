@@ -1,41 +1,25 @@
-const net = require('net');
-const socketUtil = require('../utils/socket');
 const noop = () => {};
+var prevPosition;
 
 module.exports =
 {
-	init: function(opts, cb)
+	init: function()
 	{
-		cb = cb || noop;
-		this.socket = new net.Socket();
+		prevPosition = null;
 
-		socketUtil.connectSocket(this.socket, opts, (err) =>
-		{
-			if(err) return cb(err);
-
-			this.command(['observe_property', 1, 'time-pos']);
-			this.command(['observe_property', 2, 'volume']);
-			this.command(['observe_property', 3, 'pause']);
-			this.command(['observe_property', 4, 'duration']);
-			this.command(['observe_property', 5, 'eof-reached']);
-
-			cb(null);
-		});
+		this.command(['observe_property', 1, 'time-pos']);
+		this.command(['observe_property', 2, 'volume']);
+		this.command(['observe_property', 3, 'pause']);
+		this.command(['observe_property', 4, 'duration']);
+		this.command(['observe_property', 5, 'eof-reached']);
 	},
-
-	destroy: function(opts)
-	{
-		socketUtil.removeSocket(this.socket, opts);
-	},
-
-	socket: null,
 
 	getSpawnArgs: function(opts)
 	{
-		if(!Array.isArray(opts.playerArgs)) opts.playerArgs = [''];
+		if(!Array.isArray(opts.args)) opts.args = [''];
 		var presetArgs = [`--input-ipc-server=${opts.ipcPath}`, opts.media];
 
-		return [ ...opts.playerArgs, ...presetArgs ];
+		return [ ...opts.args, ...presetArgs ];
 	},
 
 	command: function(params, cb)
@@ -43,7 +27,7 @@ module.exports =
 		cb = cb || noop;
 		var command = null;
 
-		if(!this.socket || (this.socket && !this.socket.writable))
+		if(!this.writable)
 			return cb(new Error('No writable IPC socket! Playback control disallowed'));
 
 		if(!Array.isArray(params))
@@ -52,7 +36,7 @@ module.exports =
 		try { command = JSON.stringify({ command: params }); }
 		catch(err) { return cb(err); }
 
-		this.socket.write(command + '\n', cb);
+		this.write(command + '\n', cb);
 	},
 
 	play: function(cb)
@@ -174,9 +158,46 @@ module.exports =
 		this.command(['set_property', 'keep-open', value], cb);
 	},
 
-	stop: function(cb)
+	_playerQuit: function(cb)
 	{
 		cb = cb || noop;
 		this.command(['quit', 0], cb);
+	},
+
+	_parseSocketData: function(data)
+	{
+		const splitOper = data.includes('\r\n') ? '\r\n' : '\n';
+		const msgArray = data.split(splitOper);
+
+		for(var i = 0; i < msgArray.length - 1; i++)
+		{
+			var msg = JSON.parse(msgArray[i]);
+			if(msg.event === 'property-change')
+			{
+				var value = null;
+
+				switch(msg.name)
+				{
+					case 'volume':
+						value = msg.data / 100;
+						break;
+					case 'time-pos':
+						value = Math.floor(msg.data);
+						if(value === prevPosition) continue;
+						prevPosition = value;
+						break;
+					case 'duration':
+					case 'pause':
+					case 'eof-reached':
+						value = msg.data;
+						break;
+					default:
+						break;
+				}
+
+				if(value !== null)
+					this.emit('playback', { name: msg.name, value: value });
+			}
+		}
 	}
 }

@@ -1,104 +1,141 @@
 const fs = require('fs');
+const net = require('net');
 const { spawn } = require('child_process');
+const socket = require('./socket');
+
 const noop = () => {};
 const playersArray = fs.readdirSync(__dirname + '/players');
 
 const defaults = {
+	app: 'mpv',
+	args: [''],
 	media: null,
-	player: 'mpv',
-	playerArgs: [''],
-	ipcPath: '/tmp/media-ctl-socket'
+	ipcPath: '/tmp/media-ctl-socket',
+	detached: false
 };
 
 var players = importPlayers();
 
-module.exports = class PlayerController
+module.exports = class PlayerController extends net.Socket
 {
 	constructor(options)
 	{
+		super();
+
 		if(!(options instanceof Object)) options = {};
 		this.opts = { ...defaults, ...options };
-
 		this.process = null;
-		this.player = players[this.opts.player] || players[defaults.player];
+	}
 
-		this.launch = (cb) =>
+	launch(cb)
+	{
+		cb = cb || noop;
+		const launchOpts = Object.assign({}, this.opts);
+
+		var player = players[launchOpts.app] || players[defaults.app];
+
+		Object.keys(player).forEach(key =>
 		{
-			cb = cb || noop;
-			var called = false;
+			this[key] = player[key];
+		});
 
-			if(typeof this.opts.ipcPath !== 'string' && !this.opts.ipcPath.length)
-				return cb(new Error('No IPC socket path provided!'));
+		var called = false;
 
-			if(typeof this.opts.media !== 'string' && !this.opts.media.length)
-				return cb(new Error('No media source provided!'));
+		if(typeof launchOpts.ipcPath !== 'string' || !launchOpts.ipcPath.length)
+			return cb(new Error('No IPC socket path provided!'));
 
-			this.player.init(this.opts, (err) =>
+		if(typeof launchOpts.media !== 'string' || !launchOpts.media.length)
+			return cb(new Error('No media source provided!'));
+
+		socket.connect(this, launchOpts, (err) =>
+		{
+			/*
+			Callback on error and success
+			Success only occurs after non-error process spawn
+			*/
+			if(!called)
 			{
-				/*
-				Callback on error and success
-				Success only occurs after non-error process spawn
-				*/
-				if(!called)
+				called = true;
+
+				if(!err)
 				{
-					called = true;
-					return cb(err);
+					if(
+						this.init
+						&& typeof this.init === 'function'
+					)
+						this.init();
+
+					this.emit('app-launch');
+
+					if(
+						this._parseSocketData
+						&& typeof this._parseSocketData === 'function'
+					)
+						this.on('data', this._parseSocketData);
 				}
-			});
 
-			const spawnOpts = { stdio: ['ignore', 'pipe', 'ignore'], detached: true };
-			const spawnArgs = this.player.getSpawnArgs(this.opts);
+				return cb(err);
+			}
+		});
 
-			try { this.process = spawn(this.opts.player, spawnArgs, spawnOpts); }
-			catch(err)
+		const spawnOpts = { stdio: ['ignore', 'pipe', 'ignore'], detached: launchOpts.detached };
+		const spawnArgs = this.getSpawnArgs(launchOpts);
+
+		try { this.process = spawn(launchOpts.app, spawnArgs, spawnOpts); }
+		catch(err)
+		{
+			/* Callback only on error */
+			if(!called)
 			{
-				/* Callback only on error */
-				if(!called)
-				{
-					called = true;
-					return cb(err);
-				}
+				called = true;
+				return cb(err);
+			}
+		}
+
+		this.process.once('exit', (code) =>
+		{
+			if(code && !called)
+			{
+				called = true;
+				return cb(new Error(`Media player exited with error code: ${code}`));
 			}
 
-			this.process.once('exit', () =>
+			if(
+				this._parseSocketData
+				&& typeof this._parseSocketData === 'function'
+			)
+				this.removeListener('data', this._parseSocketData);
+
+			if(this.cleanup && typeof this.cleanup === 'function')
+				this.cleanup();
+
+			socket.disconnect(this, launchOpts, () =>
 			{
 				this.process = null;
-				this.player.destroy(this.opts);
+				this.emit('app-exit', code);
+			});
+		});
+	}
+
+	quit(cb)
+	{
+		cb = cb || noop;
+
+		if(this.process)
+		{
+			this._playerQuit(err =>
+			{
+				if(err)
+				{
+					try { this.process.kill('SIGINT'); }
+					catch(err) { return cb(err); }
+				}
+
+				return cb(null);
 			});
 		}
-
-		this.quit = (cb) =>
-		{
-			cb = cb || noop;
-
-			if(this.process)
-			{
-				this.player.stop(err =>
-				{
-					if(err)
-					{
-						try { this.process.kill('SIGINT'); }
-						catch(err) { return cb(err); }
-					}
-
-					return cb(null);
-				});
-			}
-			else
-				return cb(new Error('No open player process found!'));
-		}
-
-		const shutdown = (err) =>
-		{
-			if(err) console.error(err);
-
-			this.quit(() => process.exit());
-		}
-
-		/* Close spawn process on app exit */
-		process.on('SIGINT', () => shutdown());
-		process.on('SIGTERM', () => shutdown());
-		process.on('uncaughtException', shutdown);
+		else
+			return cb(new Error('No open player process found!'));
 	}
 }
 
