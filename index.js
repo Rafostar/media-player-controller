@@ -146,6 +146,11 @@ module.exports = class PlayerController extends net.Socket
 		else
 			return cb(new Error('No open player process found!'));
 	}
+
+	_getSupportedPlayers()
+	{
+		return Object.keys(players);
+	}
 }
 
 function importPlayers()
