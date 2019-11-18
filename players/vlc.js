@@ -2,6 +2,7 @@ const noop = () => {};
 var previous =
 {
 	position: -1,
+	duration: -1,
 	volume: -1
 }
 
@@ -10,6 +11,7 @@ module.exports =
 	init: function()
 	{
 		previous.position = -1;
+		previous.duration = -1;
 		previous.volume = -1;
 
 		this._setPlaybackInterval();
@@ -28,6 +30,7 @@ module.exports =
 	_clearPlaybackInterval: function()
 	{
 		clearInterval(this.playbackInterval);
+		this.playbackInterval = null;
 	},
 
 	getSpawnArgs: function(opts)
@@ -58,43 +61,18 @@ module.exports =
 
 	play: function(cb)
 	{
-		cb = cb || noop;
-		this.command(['play'], cb);
+		this.cyclePause(cb);
 	},
 
 	pause: function(cb)
 	{
-		cb = cb || noop;
-		this.command(['pause'], cb);
+		this.cyclePause(cb);
 	},
 
 	cyclePause: function(cb)
 	{
 		cb = cb || noop;
-		this._clearPlaybackInterval();
-
-		this.command(['is_playing'], (err) =>
-		{
-			if(!err)
-			{
-				this.once('data', (data) =>
-				{
-					this._setPlaybackInterval();
-
-					const splitOper = audioData.includes('\r\n') ? '\r\n' : '\n';
-					const dataArr = data.split(splitOper);
-					const isPlaying = dataArr.some(el => el.charAt(0) === '1');
-
-					if(isPlaying) this.pause(cb);
-					else this.play(cb);
-				});
-			}
-			else
-			{
-				this._setPlaybackInterval();
-				return cb(err);
-			}
-		});
+		this.command(['pause'], cb);
 	},
 
 	load: function(media, cb)
@@ -112,7 +90,7 @@ module.exports =
 	setVolume: function(value, cb)
 	{
 		cb = cb || noop;
-		this.command(['volume', value], cb);
+		this.command(['volume', value * 100], cb);
 	},
 
 	setRepeat: function(isEnabled, cb)
@@ -200,14 +178,23 @@ module.exports =
 
 		msgArray.forEach(msg =>
 		{
+			var eventName, eventValue;
 			if(!isNaN(msg))
 			{
-				var value = parseInt(msg, 10);
-				if(value === previous.position) return;
-				previous.position = value;
+				eventValue = parseInt(msg, 10);
 
-				this.emit('playback', { name: 'time-pos', value: value });
-				return;
+				if(previous.duration > 0)
+				{
+					if(eventValue === previous.position) return;
+					previous.position = eventValue;
+					eventName = 'time-pos';
+				}
+				else
+				{
+					if(eventValue <= 0) return;
+					previous.duration = eventValue;
+					eventName = 'duration';
+				}
 			}
 			else if(msg.startsWith('status change:'))
 			{
@@ -216,7 +203,14 @@ module.exports =
 
 				var foundName = msgData[0].trim();
 				var foundValue = msgData[1].trim();
-				var eventName, eventValue;
+
+				const checkDuration = () =>
+				{
+					if(previous.duration < 0)
+					{
+						this.command(['get_length']);
+					}
+				}
 
 				switch(foundName)
 				{
@@ -225,6 +219,11 @@ module.exports =
 						{
 							eventName = 'pause';
 							eventValue = false;
+							checkDuration();
+						}
+						else if(foundValue === '3')
+						{
+							checkDuration();
 						}
 						break;
 					case 'pause state':
@@ -236,17 +235,17 @@ module.exports =
 						break;
 					case 'audio volume':
 						eventName = 'volume';
-						eventValue = parseFloat((foundValue / 256).toFixed(2));
+						eventValue = parseFloat((foundValue / 100).toFixed(2));
 						if(eventValue === previous.volume) return;
 						previous.volume = eventValue;
 						break;
 					default:
 						break;
 				}
-
-				if(eventName)
-					this.emit('playback', { name: eventName, value: eventValue });
 			}
+
+			if(eventName)
+				this.emit('playback', { name: eventName, value: eventValue });
 		});
 	},
 
