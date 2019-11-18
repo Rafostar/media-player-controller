@@ -72,7 +72,7 @@ module.exports =
 	setVolume: function(value, cb)
 	{
 		cb = cb || noop;
-		this.command(['set_property', 'volume', value], cb);
+		this.command(['set_property', 'volume', value * 100], cb);
 	},
 
 	setRepeat: function(isEnabled, cb)
