@@ -30,9 +30,14 @@ module.exports = class PlayerController extends net.Socket
 	launch(cb)
 	{
 		cb = cb || noop;
-		const launchOpts = Object.assign({}, this.opts);
 
-		var player = players[launchOpts.app] || players[defaults.app];
+		/*
+		Allows controller opts to be edited later on
+		without affecting current spawn
+		*/
+		const launchOpts = Object.assign(defaults, this.opts);
+
+		var player = players[launchOpts.app];
 
 		Object.keys(player).forEach(key =>
 		{
@@ -78,7 +83,11 @@ module.exports = class PlayerController extends net.Socket
 			}
 		});
 
-		const spawnOpts = { stdio: ['ignore', 'pipe', 'ignore'], detached: launchOpts.detached };
+		const spawnOpts = {
+			stdio: ['ignore', 'pipe', 'ignore'],
+			env: { ...process.env, LANG: 'C' },
+			detached: launchOpts.detached
+		};
 		const spawnArgs = this.getSpawnArgs(launchOpts);
 
 		try { this.process = spawn(launchOpts.app, spawnArgs, spawnOpts); }
