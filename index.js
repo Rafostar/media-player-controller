@@ -23,6 +23,8 @@ module.exports = class PlayerController extends net.Socket
 		super();
 
 		if(!(options instanceof Object)) options = {};
+		this.connected = false;
+		this.destroyed = false;
 		this.opts = { ...defaults, ...options };
 		this.process = null;
 	}
@@ -118,8 +120,10 @@ module.exports = class PlayerController extends net.Socket
 			if(this.cleanup && typeof this.cleanup === 'function')
 				this.cleanup();
 
-			socket.disconnect(this, launchOpts, () =>
+			socket.disconnect(this, launchOpts, (err) =>
 			{
+				if(err) this.emit('app-error', err);
+
 				this.process = null;
 				this.emit('app-exit', code);
 			});
