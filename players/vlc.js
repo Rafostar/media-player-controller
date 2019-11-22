@@ -1,4 +1,5 @@
 const noop = () => {};
+const helper = require('./../helper');
 var previous =
 {
 	position: -1,
@@ -36,8 +37,27 @@ module.exports =
 	getSpawnArgs: function(opts)
 	{
 		if(!Array.isArray(opts.args)) opts.args = [''];
-		var presetArgs = ['-I', 'oldrc', '--rc-unix', opts.ipcPath,
-			'--rc-fake-tty', opts.media];
+		var presetArgs = [];
+
+		if(helper.getConnectMethod(opts) === 'unix')
+		{
+			presetArgs = [
+				'--play-and-exit',
+				'--extraintf', 'oldrc',
+				'--rc-unix', opts.ipcPath,
+				'--rc-fake-tty',
+				opts.media
+			];
+		}
+		else
+		{
+			presetArgs = [
+				'--play-and-exit',
+				'--extraintf', 'http',
+				'--http-password', 'vlc',
+				opts.media
+			];
+		}
 
 		return [ ...opts.args, ...presetArgs ];
 	},
@@ -90,7 +110,7 @@ module.exports =
 	setVolume: function(value, cb)
 	{
 		cb = cb || noop;
-		this.command(['volume', value * 100], cb);
+		this.command(['volume', value * 256], cb);
 	},
 
 	setRepeat: function(isEnabled, cb)
@@ -235,8 +255,8 @@ module.exports =
 						break;
 					case 'audio volume':
 						eventName = 'volume';
-						eventValue = parseFloat((foundValue / 100).toFixed(2));
-						if(eventValue === previous.volume) return;
+						eventValue = parseFloat((foundValue / 256).toFixed(2));
+						if(eventValue === previous.volume || eventValue < 0) return;
 						previous.volume = eventValue;
 						break;
 					default:
