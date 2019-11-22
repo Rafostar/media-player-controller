@@ -37,29 +37,28 @@ module.exports =
 	getSpawnArgs: function(opts)
 	{
 		if(!Array.isArray(opts.args)) opts.args = [''];
-		var presetArgs = [];
+		var presetArgs = [
+			'--play-and-exit',
+			'--qt-continue', '0'
+		];
 
 		if(helper.getConnectMethod(opts) === 'unix')
 		{
-			presetArgs = [
-				'--play-and-exit',
-				'--qt-continue', '0',
+			presetArgs.push(
 				'--extraintf', 'oldrc',
 				'--rc-unix', opts.ipcPath,
-				'--rc-fake-tty',
-				opts.media
-			];
+				'--rc-fake-tty'
+			);
 		}
 		else
 		{
-			presetArgs = [
-				'--play-and-exit',
-				'--qt-continue', '0',
+			presetArgs.push(
 				'--extraintf', 'http',
-				'--http-password', 'vlc',
-				opts.media
-			];
+				'--http-password', 'vlc'
+			);
 		}
+
+		presetArgs.push(opts.media);
 
 		return [ ...opts.args, ...presetArgs ];
 	},
