@@ -43,6 +43,7 @@ module.exports =
 		{
 			presetArgs = [
 				'--play-and-exit',
+				'--qt-continue', '0',
 				'--extraintf', 'oldrc',
 				'--rc-unix', opts.ipcPath,
 				'--rc-fake-tty',
@@ -53,6 +54,7 @@ module.exports =
 		{
 			presetArgs = [
 				'--play-and-exit',
+				'--qt-continue', '0',
 				'--extraintf', 'http',
 				'--http-password', 'vlc',
 				opts.media
