@@ -1,4 +1,5 @@
 const fs = require('fs');
+const helper = require('./helper');
 const noop = () => {};
 
 module.exports =
@@ -7,14 +8,21 @@ module.exports =
 	{
 		cb = cb || noop;
 
-		connectUnix(socket, opts.ipcPath, cb);
+		const connMethod = helper.getConnectMethod(opts);
+		if(connMethod === 'unix')
+			connectUnix(socket, opts.ipcPath, cb);
+		else
+			cb(new Error(`Unsupported connection: ${connMethod}`));
 	},
 
 	disconnect: function(socket, opts, cb)
 	{
 		cb = cb || noop;
 
-		disconnectUnix(socket, opts.ipcPath, cb);
+		if(helper.getConnectMethod(opts) === 'unix')
+			disconnectUnix(socket, opts.ipcPath, cb);
+		else
+			cb(new Error(`Unsupported disconnection: ${connMethod}`));
 	}
 }
 
@@ -25,11 +33,18 @@ function connectUnix(socket, ipcPath, cb)
 
 	socket.setEncoding('utf8');
 	socket.setNoDelay(true);
+	socket.connected = false;
 
 	const onConnect = function()
 	{
 		clearTimeout(timeout);
+		socket.connected = true;
 		cb(null);
+	}
+
+	const onDisconnect = function()
+	{
+		socket.connected = false;
 	}
 
 	const onError = function()
@@ -39,6 +54,7 @@ function connectUnix(socket, ipcPath, cb)
 	}
 
 	socket.once('connect', onConnect);
+	socket.once('close', onDisconnect);
 	socket.on('error', onError);
 
 	var watcher = fs.watch(ipcPath, () =>
@@ -56,6 +72,8 @@ function disconnectUnix(socket, ipcPath, cb)
 	{
 		socket.removeAllListeners('error');
 		socket.destroy();
+		socket.connected = false;
+		socket.destroyed = true;
 	}
 
 	fs.access(ipcPath, fs.constants.F_OK, (err) =>
