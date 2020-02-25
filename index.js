@@ -8,7 +8,7 @@ const playersArray = fs.readdirSync(__dirname + '/players');
 
 const defaults = {
 	app: 'mpv',
-	args: [''],
+	args: [],
 	media: null,
 	ipcPath: '/tmp/media-ctl-socket',
 	detached: false
@@ -34,19 +34,20 @@ module.exports = class PlayerController extends net.Socket
 		cb = cb || noop;
 
 		/*
-		Allows controller opts to be edited later on
-		without affecting current spawn
+		  Allows controller opts to be edited later on
+		  without affecting current spawn
 		*/
 		var launchOpts = Object.assign(defaults, this.opts);
 		var player = players[launchOpts.app];
-
-		launchOpts._connectType = (player._connectType) ?
-			player._connectType : null;
 
 		Object.keys(player).forEach(key =>
 		{
 			this[key] = player[key];
 		});
+
+		/* Replace optional values */
+		this._app = player._app || launchOpts.app;
+		this._forceEnglish = player._forceEnglish || false;
 
 		var called = false;
 
@@ -59,50 +60,53 @@ module.exports = class PlayerController extends net.Socket
 		socket.connect(this, launchOpts, (err) =>
 		{
 			/*
-			Callback on error and success
-			Success only occurs after non-error process spawn
+			  Callback on error and success
+			  Success only occurs after non-error process spawn
 			*/
-			if(!called)
-			{
-				called = true;
+			if(called) return;
 
-				if(!err)
-				{
-					if(
-						this.init
-						&& typeof this.init === 'function'
-					)
-						this.init();
+			called = true;
 
-					this.emit('app-launch');
+			if(err) return cb(err);
 
-					if(
-						this._parseSocketData
-						&& typeof this._parseSocketData === 'function'
-					)
-						this.on('data', this._parseSocketData);
-				}
+			if(
+				this.init
+				&& typeof this.init === 'function'
+			)
+				this.init();
 
-				return cb(err);
-			}
+			this.emit('app-launch');
+
+			if(
+				this._parseSocketData
+				&& typeof this._parseSocketData === 'function'
+			)
+				this.on('data', this._parseSocketData);
+
+			return cb(null);
 		});
 
-		const spawnOpts = {
+		var spawnOpts = {
 			stdio: ['ignore', 'pipe', 'ignore'],
-			env: { ...process.env, LANG: 'C' },
 			detached: launchOpts.detached
 		};
+
+		if(this._forceEnglish)
+			spawnOpts.env = { ...process.env, LANG: 'C' };
+
+		if(!Array.isArray(launchOpts.args))
+			launchOpts.args = [];
+
 		const spawnArgs = this._getSpawnArgs(launchOpts);
 
-		try { this.process = spawn(player._app || launchOpts.app, spawnArgs, spawnOpts); }
-		catch(err)
-		{
-			/* Callback only on error */
-			if(!called)
-			{
-				called = true;
-				return cb(err);
-			}
+		try {
+			this.process = spawn(this._app, spawnArgs, spawnOpts);
+		}
+		catch(err) {
+			if(called) return;
+
+			called = true;
+			return cb(err);
 		}
 
 		this.process.once('exit', (code) =>
@@ -110,7 +114,9 @@ module.exports = class PlayerController extends net.Socket
 			if(code && !called)
 			{
 				called = true;
-				return cb(new Error(`Media player exited with error code: ${code}`));
+				return cb(new Error(
+					`Media player exited with error code: ${code}`)
+				);
 			}
 
 			if(
@@ -140,13 +146,10 @@ module.exports = class PlayerController extends net.Socket
 		{
 			this._playerQuit(err =>
 			{
-				if(err)
-				{
-					try { this.process.kill('SIGINT'); }
-					catch(err) { return cb(err); }
-				}
+				if(!err) return cb(null);
 
-				return cb(null);
+				try { this.process.kill('SIGINT'); }
+				catch(err) { return cb(err); }
 			});
 		}
 		else

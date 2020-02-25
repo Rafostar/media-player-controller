@@ -4,17 +4,6 @@ const xml2js = require('xml2js').parseString;
 
 module.exports =
 {
-	getConnectMethod: function(opts)
-	{
-		if(opts._connectType)
-			return opts._connectType;
-
-		return(
-			process.platform !== 'win32'
-			|| opts.ipcPath.includes('\\.\\pipe\\')
-		) ? 'socket' : 'web';
-	},
-
 	httpRequest: function(opts, cb)
 	{
 		var reqOpts = {

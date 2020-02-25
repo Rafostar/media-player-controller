@@ -8,9 +8,7 @@ module.exports =
 	{
 		cb = cb || noop;
 
-		const connMethod = helper.getConnectMethod(opts);
-
-		switch(connMethod)
+		switch(socket._connectType)
 		{
 			case 'socket':
 				connectUnix(socket, opts.ipcPath, cb);
@@ -29,9 +27,7 @@ module.exports =
 	{
 		cb = cb || noop;
 
-		const connMethod = helper.getConnectMethod(opts);
-
-		switch(connMethod)
+		switch(socket._connectType)
 		{
 			case 'socket':
 				disconnectUnix(socket, opts.ipcPath, cb);
@@ -55,6 +51,8 @@ function connectUnix(socket, ipcPath, cb)
 	socket.setEncoding('utf8');
 	socket.setNoDelay(true);
 	socket.connected = false;
+
+	var timeout = setTimeout(() => cb(new Error('Socket connection timeout')), 10000);
 
 	const onConnect = function()
 	{
@@ -83,8 +81,6 @@ function connectUnix(socket, ipcPath, cb)
 		watcher.close();
 		socket.connect(ipcPath);
 	});
-
-	var timeout = setTimeout(() => cb(new Error('Socket connection timeout')), 10000);
 }
 
 function disconnectUnix(socket, ipcPath, cb)

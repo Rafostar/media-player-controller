@@ -20,6 +20,7 @@ module.exports =
 
 	_app: 'vlc',
 	_connectType: 'socket',
+	_forceEnglish: true,
 
 	_setPlaybackInterval: function()
 	{
@@ -39,16 +40,14 @@ module.exports =
 
 	_getSpawnArgs: function(opts)
 	{
-		if(!Array.isArray(opts.args)) opts.args = [''];
 		var presetArgs = [
 			'--play-and-exit',
 			'--qt-continue', '0',
 			'--extraintf', 'oldrc',
 			'--rc-unix', opts.ipcPath,
-			'--rc-fake-tty'
+			'--rc-fake-tty',
+			opts.media
 		];
-
-		presetArgs.push(opts.media);
 
 		return [ ...opts.args, ...presetArgs ];
 	},

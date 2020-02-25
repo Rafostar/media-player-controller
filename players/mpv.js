@@ -18,8 +18,10 @@ module.exports =
 
 	_getSpawnArgs: function(opts)
 	{
-		if(!Array.isArray(opts.args)) opts.args = [''];
-		var presetArgs = [`--input-ipc-server=${opts.ipcPath}`, opts.media];
+		var presetArgs = [
+			`--input-ipc-server=${opts.ipcPath}`,
+			opts.media
+		];
 
 		return [ ...opts.args, ...presetArgs ];
 	},
@@ -174,37 +176,39 @@ module.exports =
 		for(var i = 0; i < msgArray.length - 1; i++)
 		{
 			var msg = JSON.parse(msgArray[i]);
-			if(msg.event === 'property-change')
+
+			if(msg.event !== 'property-change')
+				continue;
+
+			var value = null;
+
+			switch(msg.name)
 			{
-				var value = null;
-
-				switch(msg.name)
-				{
-					case 'volume':
-						value = msg.data / 100;
-						break;
-					case 'time-pos':
-						if(
-							!isNaN(prevPosition)
-							&& Math.abs(prevPosition - msg.data) < 1
-						) {
-							continue;
-						}
-						value = Math.floor(msg.data);
-						prevPosition = msg.data;
-						break;
-					case 'duration':
-					case 'pause':
-					case 'eof-reached':
-						value = msg.data;
-						break;
-					default:
-						break;
-				}
-
-				if(value !== null)
-					this.emit('playback', { name: msg.name, value: value });
+				case 'volume':
+					value = msg.data / 100;
+					break;
+				case 'time-pos':
+					if(
+						msg.data < 0
+						|| !isNaN(prevPosition)
+						&& Math.abs(prevPosition - msg.data) < 1
+					) {
+						continue;
+					}
+					value = Math.floor(msg.data);
+					prevPosition = msg.data;
+					break;
+				case 'duration':
+				case 'pause':
+				case 'eof-reached':
+					value = msg.data;
+					break;
+				default:
+					break;
 			}
+
+			if(value !== null)
+				this.emit('playback', { name: msg.name, value: value });
 		}
 	}
 }

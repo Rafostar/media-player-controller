@@ -109,17 +109,15 @@ module.exports =
 
 	_getSpawnArgs: function(opts)
 	{
-		if(!Array.isArray(opts.args)) opts.args = [''];
 		var presetArgs = [
 			'--no-play-and-exit',
 			'--qt-continue', '0',
 			'--image-duration', '-1',
 			'--extraintf', 'http',
 			'--http-port', 9280,
-			'--http-password', HTTP_PASSWORD
+			'--http-password', HTTP_PASSWORD,
+			opts.media
 		];
-
-		presetArgs.push(opts.media);
 
 		return [ ...opts.args, ...presetArgs ];
 	},
