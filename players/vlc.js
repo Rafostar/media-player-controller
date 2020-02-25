@@ -1,62 +1,123 @@
 const noop = () => {};
-const helper = require('./../helper');
-var previous =
+const helper = require('../helper');
+
+/* VLC requires password for web interface */
+const HTTP_PASSWORD = 'vlc';
+
+var previous;
+var httpOpts = { pass: HTTP_PASSWORD, xml: true };
+var playerData =
 {
-	position: -1,
-	duration: -1,
-	volume: -1
-}
+	'time-pos': 'time',
+	'volume': 'volume',
+	'duration': 'length',
+	'pause': 'state',
+	'eof-reached': 'state'
+};
 
 module.exports =
 {
 	init: function()
 	{
-		previous.position = -1;
-		previous.duration = -1;
-		previous.volume = -1;
+		previous = {};
 
-		this._setPlaybackInterval();
+		this._intervalEnabled = true;
+		this._getPlayerData();
 	},
 
-	_setPlaybackInterval: function()
+	_connectType: 'web',
+
+	_getPlayerData: function()
 	{
-		this.playbackInterval = setInterval(() => this.command(['get_time']), 250);
+		const onTimeout = () =>
+		{
+			this._getDataTimeout = null;
+			this._getPlayerData();
+		}
+
+		httpOpts.path = '/requests/status.xml';
+		helper.httpRequest(httpOpts, (err, result) =>
+		{
+			var time = 1000;
+
+			if(!err && this._intervalEnabled)
+			{
+				this._parseRequest(result);
+				time = 500;
+			}
+
+			if(this._intervalEnabled)
+				this._getDataTimeout = setTimeout(() => onTimeout(), time);
+		});
+	},
+
+	_parseRequest: function(result)
+	{
+		for(var key in playerData)
+		{
+			var value = result[playerData[key]];
+
+			switch(key)
+			{
+				case 'pause':
+					value = (value === 'paused');
+					break;
+				case 'eof-reached':
+					value = (value === 'stopped');
+					break;
+				case 'time-pos':
+				case 'duration':
+					value = parseInt(value);
+					if(value < 0)
+						continue;
+					break;
+				case 'volume':
+					value = parseFloat(value / 256);
+					break;
+				default:
+					if(value == 'true')
+						value = true;
+					else if(value == 'false')
+						value = false;
+					break;
+			}
+
+			if(
+				previous.hasOwnProperty(key)
+				&& previous[key] === value
+			)
+				continue;
+
+			previous[key] = value;
+			this.emit('playback', { name: key, value: value });
+		}
+
+		previous.repeat = (result.repeat === true || result.repeat === 'true');
+		previous.fullscreen = (result.fullscreen > 0);
+
+		if(result.currentplid > 0)
+			previous.id = result.currentplid;
 	},
 
 	cleanup: function()
 	{
-		this._clearPlaybackInterval();
+		this._intervalEnabled = false;
+
+		if(this._getDataTimeout)
+			clearTimeout(this._getDataTimeout);
 	},
 
-	_clearPlaybackInterval: function()
-	{
-		clearInterval(this.playbackInterval);
-		this.playbackInterval = null;
-	},
-
-	getSpawnArgs: function(opts)
+	_getSpawnArgs: function(opts)
 	{
 		if(!Array.isArray(opts.args)) opts.args = [''];
 		var presetArgs = [
-			'--play-and-exit',
-			'--qt-continue', '0'
+			'--no-play-and-exit',
+			'--qt-continue', '0',
+			'--image-duration', '-1',
+			'--extraintf', 'http',
+			'--http-port', 9280,
+			'--http-password', HTTP_PASSWORD
 		];
-
-		if(helper.getConnectMethod(opts) === 'unix')
-		{
-			presetArgs.push(
-				'--extraintf', 'oldrc',
-				'--rc-unix', opts.ipcPath,
-				'--rc-fake-tty'
-			);
-		}
-		else
-		{
-			presetArgs.push(
-				'--extraintf', 'http',
-				'--http-password', 'vlc'
-			);
-		}
 
 		presetArgs.push(opts.media);
 
@@ -68,50 +129,79 @@ module.exports =
 		cb = cb || noop;
 		var command = null;
 
-		if(!this.writable)
-			return cb(new Error('No writable IPC socket! Playback control disallowed'));
-
 		if(!Array.isArray(params))
 			return cb(new Error('No command parameters array!'));
 
-		try { command = Object.values(params).join(' '); }
-		catch(err) { return cb(err); }
+		for(var cmd of params)
+		{
+			if(!command)
+				command = cmd;
+			else
+				command += `&${cmd}`;
+		}
 
-		this.write(command + '\n', cb);
+		httpOpts.path = '/requests/status.xml?command=' + command;
+		helper.httpRequest(httpOpts, (err, result) =>
+		{
+			if(err) return cb(err);
+
+			this._parseRequest(result);
+			cb(null);
+		});
 	},
 
 	play: function(cb)
 	{
-		this.cyclePause(cb);
+		cb = cb || noop;
+
+		if(previous.pause)
+			this.cyclePause(cb);
+		else
+			cb(null);
 	},
 
 	pause: function(cb)
 	{
-		this.cyclePause(cb);
+		cb = cb || noop;
+
+		if(!previous.pause)
+			this.cyclePause(cb);
+		else
+			cb(null);
 	},
 
 	cyclePause: function(cb)
 	{
 		cb = cb || noop;
-		this.command(['pause'], cb);
+		this.command(['pl_pause'], cb);
 	},
 
 	load: function(media, cb)
 	{
 		cb = cb || noop;
-		this.command(['add', media], cb);
+		var delId = previous.id;
+		this.command(['in_play', `input=${media}`], (err) =>
+		{
+			if(err) return cb(err);
+
+			this.command(['pl_delete', `id=${delId}`], cb);
+		});
 	},
 
 	seek: function(position, cb)
 	{
 		cb = cb || noop;
-		this.command(['seek', position], cb);
+		position = (position > 0) ? parseInt(position) : 0;
+
+		this.command(['seek', `val=${position}`], cb);
 	},
 
 	setVolume: function(value, cb)
 	{
 		cb = cb || noop;
-		this.command(['volume', value * 256], cb);
+		value = (value > 0) ? parseInt(value * 256) : 0;
+
+		this.command(['volume', `val=${value}`], cb);
 	},
 
 	setRepeat: function(isEnabled, cb)
@@ -124,32 +214,38 @@ module.exports =
 			case 'inf':
 			case 'yes':
 			case 'on':
-				isEnabled = 'on';
+				isEnabled = true;
 				break;
 			default:
-				isEnabled = 'off';
+				isEnabled = false;
 				break;
 		}
 
-		this.command(['repeat', isEnabled], cb);
+		if(
+			isEnabled && previous.repeat
+			|| !isEnabled && !previous.repeat
+		)
+			return cb(null);
+
+		this.command(['pl_repeat'], cb);
 	},
 
 	cycleVideo: function(cb)
 	{
 		cb = cb || noop;
-		this._actionFromOutData('Video Track', 'vtrack', cb);
+		this.command(['video_track', `val=1`], cb);
 	},
 
 	cycleAudio: function(cb)
 	{
 		cb = cb || noop;
-		this._actionFromOutData('Audio Track', 'atrack', cb);
+		this.command(['audio_track', `val=1`], cb);
 	},
 
 	cycleSubs: function(cb)
 	{
 		cb = cb || noop;
-		this._actionFromOutData('Subtitle Track', 'strack', cb);
+		this.command(['subtitle_track', `val=1`], cb);
 	},
 
 	setFullscreen: function(isEnabled, cb)
@@ -161,14 +257,20 @@ module.exports =
 			case false:
 			case 'no':
 			case 'off':
-				isEnabled = 'off';
+				isEnabled = false;
 				break;
 			default:
-				isEnabled = 'on';
+				isEnabled = true;
 				break;
 		}
 
-		this.command(['fullscreen', isEnabled], cb);
+		if(
+			isEnabled && previous.fullscreen
+			|| !isEnabled && !previous.fullscreen
+		)
+			return cb(null);
+
+		this.command(['fullscreen'], cb);
 	},
 
 	cycleFullscreen: function(cb)
@@ -182,179 +284,14 @@ module.exports =
 		cb = cb || noop;
 
 		/* VLC always uses keep open */
-		return cb(null);
+		cb(new Error('VLC does not support keep open command'));
 	},
 
 	_playerQuit: function(cb)
 	{
 		cb = cb || noop;
-		this.command(['quit'], cb);
-	},
 
-	_parseSocketData: function(data)
-	{
-		const splitOper = data.includes('\r\n') ? '\r\n' : '\n';
-		var msgArray = data.split(splitOper);
-		msgArray.pop();
-
-		msgArray.forEach(msg =>
-		{
-			var eventName, eventValue;
-			if(!isNaN(msg))
-			{
-				eventValue = parseInt(msg, 10);
-
-				if(previous.duration > 0)
-				{
-					if(eventValue === previous.position) return;
-					previous.position = eventValue;
-					eventName = 'time-pos';
-				}
-				else
-				{
-					if(eventValue <= 0) return;
-					previous.duration = eventValue;
-					eventName = 'duration';
-				}
-			}
-			else if(msg.startsWith('status change:'))
-			{
-				var msgData = msg.substring(msg.indexOf('(') + 1, msg.indexOf(')')).split(':');
-				if(msgData.length !== 2) return;
-
-				var foundName = msgData[0].trim();
-				var foundValue = msgData[1].trim();
-
-				const checkDuration = () =>
-				{
-					if(previous.duration < 0)
-					{
-						this.command(['get_length']);
-					}
-				}
-
-				switch(foundName)
-				{
-					case 'play state':
-						if(foundValue === '2')
-						{
-							eventName = 'pause';
-							eventValue = false;
-							checkDuration();
-						}
-						else if(foundValue === '3')
-						{
-							checkDuration();
-						}
-						break;
-					case 'pause state':
-						if(foundValue === '3')
-						{
-							eventName = 'pause';
-							eventValue = true;
-						}
-						break;
-					case 'audio volume':
-						eventName = 'volume';
-						eventValue = parseFloat((foundValue / 256).toFixed(2));
-						if(eventValue === previous.volume || eventValue < 0) return;
-						previous.volume = eventValue;
-						break;
-					default:
-						break;
-				}
-			}
-
-			if(eventName)
-				this.emit('playback', { name: eventName, value: eventValue });
-		});
-	},
-
-	_actionFromOutData: function(searchString, action, cb)
-	{
-		cb = cb || noop;
-		this._clearPlaybackInterval();
-
-		var outData = '';
-		var resolved = false;
-
-		const onOutData = (data) =>
-		{
-			outData += data;
-			if(outData.includes(`+----[ end of ${searchString} ]`))
-			{
-				resolved = true;
-				this.removeListener('data', onOutData);
-				this._setPlaybackInterval();
-
-				parseTracksData(outData, searchString, (err, result) =>
-				{
-					if(err) return cb(err);
-
-					var nextTrack = getNextTrackNumber(result);
-					this.command([action, nextTrack], cb);
-				});
-			}
-		}
-
-		this.on('data', onOutData);
-		var timeout = setTimeout(() => onDataError(new Error(`${searchString} data timeout`), 1000));
-
-		const onDataError = (err) =>
-		{
-			if(!resolved)
-			{
-				clearTimeout(timeout);
-				this.removeListener('data', onOutData);
-				this._setPlaybackInterval();
-
-				return cb(err);
-			}
-		}
-
-		this.command([action], (err) =>
-		{
-			if(err) onDataError(err);
-		});
+		this.cleanup();
+		cb(new Error('VLC does not support remote quit command'));
 	}
-}
-
-function parseTracksData(outData, searchString, cb)
-{
-	const splitOper = outData.includes('\r\n') ? '\r\n' : '\n';
-	const dataArr = outData.split(splitOper);
-
-	const infoStart = dataArr.indexOf(`+----[ ${searchString} ]`);
-	const infoEnd = dataArr.indexOf(`+----[ end of ${searchString} ]`);
-
-	if(infoStart < 0 || infoEnd < 0 || infoStart > infoEnd)
-		return cb(new Error(`Could not find ${searchString.toLowerCase()} data`));
-
-	var tracksArr = dataArr.slice(infoStart + 1, infoEnd);
-
-	if(tracksArr.length < 1)
-		return cb(new Error(`Could not obtain ${searchString.toLowerCase()} list`));
-
-	const currTrack = tracksArr.find(el => el.endsWith('*'));
-
-	if(!currTrack)
-		return cb(new Error(`Could not determine active ${searchString.toLowerCase()}`));
-
-	const activeNumber = tracksArr.indexOf(currTrack);
-
-	for(var i in tracksArr)
-	{
-		tracksArr[i] = tracksArr[i].substring(2, tracksArr[i].indexOf(' - '));
-
-		if(isNaN(tracksArr[i]))
-			return cb(new Error(`Could not parse ${searchString.toLowerCase()} numbers`));
-	}
-
-	return cb(null, {tracksArr, activeNumber});
-}
-
-function getNextTrackNumber(tracksData)
-{
-	var isLastTrack = (tracksData.tracksArr.length - 1 === tracksData.activeNumber);
-	return (isLastTrack) ? tracksData.tracksArr[0] : tracksData.tracksArr[tracksData.activeNumber + 1];
 }
