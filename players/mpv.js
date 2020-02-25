@@ -14,7 +14,9 @@ module.exports =
 		this.command(['observe_property', 5, 'eof-reached']);
 	},
 
-	getSpawnArgs: function(opts)
+	_connectType: 'socket',
+
+	_getSpawnArgs: function(opts)
 	{
 		if(!Array.isArray(opts.args)) opts.args = [''];
 		var presetArgs = [`--input-ipc-server=${opts.ipcPath}`, opts.media];
@@ -182,9 +184,14 @@ module.exports =
 						value = msg.data / 100;
 						break;
 					case 'time-pos':
+						if(
+							!isNaN(prevPosition)
+							&& Math.abs(prevPosition - msg.data) < 1
+						) {
+							continue;
+						}
 						value = Math.floor(msg.data);
-						if(value === prevPosition) continue;
-						prevPosition = value;
+						prevPosition = msg.data;
 						break;
 					case 'duration':
 					case 'pause':

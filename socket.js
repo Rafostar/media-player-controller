@@ -9,20 +9,41 @@ module.exports =
 		cb = cb || noop;
 
 		const connMethod = helper.getConnectMethod(opts);
-		if(connMethod === 'unix')
-			connectUnix(socket, opts.ipcPath, cb);
-		else
-			cb(new Error(`Unsupported connection: ${connMethod}`));
+
+		switch(connMethod)
+		{
+			case 'socket':
+				connectUnix(socket, opts.ipcPath, cb);
+				break;
+			case 'web':
+				socket.connected = true;
+				cb(null);
+				break;
+			default:
+				cb(new Error(`Unsupported connection: ${connMethod}`));
+				break;
+		}
 	},
 
 	disconnect: function(socket, opts, cb)
 	{
 		cb = cb || noop;
 
-		if(helper.getConnectMethod(opts) === 'unix')
-			disconnectUnix(socket, opts.ipcPath, cb);
-		else
-			cb(new Error(`Unsupported disconnection: ${connMethod}`));
+		const connMethod = helper.getConnectMethod(opts);
+
+		switch(connMethod)
+		{
+			case 'socket':
+				disconnectUnix(socket, opts.ipcPath, cb);
+				break;
+			case 'web':
+				socket.connected = false;
+				cb(null);
+				break;
+			default:
+				cb(new Error(`Unsupported disconnection: ${connMethod}`));
+				break;
+		}
 	}
 }
 

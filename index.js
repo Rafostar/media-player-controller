@@ -37,9 +37,11 @@ module.exports = class PlayerController extends net.Socket
 		Allows controller opts to be edited later on
 		without affecting current spawn
 		*/
-		const launchOpts = Object.assign(defaults, this.opts);
-
+		var launchOpts = Object.assign(defaults, this.opts);
 		var player = players[launchOpts.app];
+
+		launchOpts._connectType = (player._connectType) ?
+			player._connectType : null;
 
 		Object.keys(player).forEach(key =>
 		{
@@ -90,9 +92,9 @@ module.exports = class PlayerController extends net.Socket
 			env: { ...process.env, LANG: 'C' },
 			detached: launchOpts.detached
 		};
-		const spawnArgs = this.getSpawnArgs(launchOpts);
+		const spawnArgs = this._getSpawnArgs(launchOpts);
 
-		try { this.process = spawn(launchOpts.app, spawnArgs, spawnOpts); }
+		try { this.process = spawn(player._app || launchOpts.app, spawnArgs, spawnOpts); }
 		catch(err)
 		{
 			/* Callback only on error */
