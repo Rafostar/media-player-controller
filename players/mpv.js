@@ -196,7 +196,7 @@ module.exports =
 						continue;
 					}
 					value = Math.floor(msg.data);
-					prevPosition = msg.data;
+					prevPosition = value;
 					break;
 				case 'duration':
 				case 'pause':
