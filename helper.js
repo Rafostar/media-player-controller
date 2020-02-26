@@ -52,7 +52,9 @@ module.exports =
 
 		const onReqError = function(err)
 		{
-			debug(err);
+			if(!opts.nodebug)
+				debug(err);
+
 			cb(err);
 		}
 
@@ -65,12 +67,16 @@ module.exports =
 				onResEnd();
 			});
 
-			debug('Received response');
+			if(!opts.nodebug)
+				debug('Received response');
+
 			req.removeListener('error', onReqError);
 		});
 
 		req.on('error', onReqError);
 		req.end(opts.data || null);
-		debug('Send HTTP request');
+
+		if(!opts.nodebug)
+			debug('Send HTTP request');
 	}
 }

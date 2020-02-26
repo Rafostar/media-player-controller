@@ -1,11 +1,8 @@
 const noop = () => {};
 const helper = require('../helper');
 
-/* VLC requires password for web interface */
-const HTTP_PASSWORD = 'vlc';
-
 var previous;
-var httpOpts = { pass: HTTP_PASSWORD, xml: true };
+var httpOpts = { xml: true };
 var playerData =
 {
 	'time-pos': 'time',
@@ -109,13 +106,17 @@ module.exports =
 
 	_getSpawnArgs: function(opts)
 	{
+		/* VLC requires password for web interface */
+		httpOpts.pass = opts.httpPass || 'vlc';
+		httpOpts.port = opts.httpPort;
+
 		var presetArgs = [
 			'--no-play-and-exit',
 			'--qt-continue', '0',
 			'--image-duration', '-1',
 			'--extraintf', 'http',
-			'--http-port', 9280,
-			'--http-password', HTTP_PASSWORD,
+			'--http-port', httpOpts.port,
+			'--http-password', httpOpts.pass,
 			opts.media
 		];
 

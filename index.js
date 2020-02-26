@@ -11,6 +11,8 @@ const defaults = {
 	args: [],
 	media: null,
 	ipcPath: '/tmp/media-ctl-socket',
+	httpPort: 9280,
+	httpPass: null,
 	detached: false
 };
 
@@ -40,6 +42,9 @@ module.exports = class PlayerController extends net.Socket
 		var launchOpts = Object.assign(defaults, this.opts);
 		var player = players[launchOpts.app];
 
+		if(!player)
+			return cb(new Error(`Unsupported player: ${launchOpts.app}`));
+
 		Object.keys(player).forEach(key =>
 		{
 			this[key] = player[key];
@@ -67,7 +72,7 @@ module.exports = class PlayerController extends net.Socket
 
 			called = true;
 
-			if(err) return cb(err);
+			if(err) return this._killPlayer(() => cb(err));
 
 			if(
 				this.init
@@ -148,8 +153,7 @@ module.exports = class PlayerController extends net.Socket
 			{
 				if(!err) return cb(null);
 
-				try { this.process.kill('SIGINT'); }
-				catch(err) { return cb(err); }
+				this._killPlayer(cb);
 			});
 		}
 		else
@@ -159,6 +163,19 @@ module.exports = class PlayerController extends net.Socket
 	_getSupportedPlayers()
 	{
 		return Object.keys(players);
+	}
+
+	_killPlayer(cb)
+	{
+		cb = cb || noop;
+
+		if(this.process)
+		{
+			try { this.process.kill('SIGINT'); }
+			catch(err) { return cb(err); }
+		}
+
+		cb(null);
 	}
 }
 

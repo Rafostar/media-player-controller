@@ -2,6 +2,8 @@ const fs = require('fs');
 const helper = require('./helper');
 const noop = () => {};
 
+var timeout;
+
 module.exports =
 {
 	connect: function(socket, opts, cb)
@@ -14,8 +16,7 @@ module.exports =
 				connectUnix(socket, opts.ipcPath, cb);
 				break;
 			case 'web':
-				socket.connected = true;
-				cb(null);
+				connectWeb(socket, opts.httpPort, cb);
 				break;
 			default:
 				cb(new Error(`Unsupported connection: ${connMethod}`));
@@ -33,6 +34,7 @@ module.exports =
 				disconnectUnix(socket, opts.ipcPath, cb);
 				break;
 			case 'web':
+				disconnectWeb();
 				socket.connected = false;
 				cb(null);
 				break;
@@ -52,11 +54,17 @@ function connectUnix(socket, ipcPath, cb)
 	socket.setNoDelay(true);
 	socket.connected = false;
 
-	var timeout = setTimeout(() => cb(new Error('Socket connection timeout')), 10000);
+	timeout = setTimeout(() =>
+	{
+		timeout = null;
+		cb(new Error('Socket connect timeout'));
+	}, 10000);
 
 	const onConnect = function()
 	{
 		clearTimeout(timeout);
+		timeout = null;
+
 		socket.connected = true;
 		cb(null);
 	}
@@ -85,6 +93,12 @@ function connectUnix(socket, ipcPath, cb)
 
 function disconnectUnix(socket, ipcPath, cb)
 {
+	if(timeout)
+	{
+		clearTimeout(timeout);
+		timeout = null;
+	}
+
 	if(socket && !socket.destroyed)
 	{
 		socket.removeAllListeners('error');
@@ -99,4 +113,40 @@ function disconnectUnix(socket, ipcPath, cb)
 
 		fs.unlink(ipcPath, cb);
 	});
+}
+
+function connectWeb(socket, httpPort, cb)
+{
+	timeout = setTimeout(() => timeout = null, 10000);
+
+	waitWebServer = function()
+	{
+		helper.httpRequest({ nodebug: true, port: httpPort }, err =>
+		{
+			if(err && timeout)
+				return setTimeout(() => waitWebServer(), 500);
+			else if(err)
+				return cb(new Error('Web server connect timeout'));
+
+			/* When retry is true timeout is not finished */
+			if(timeout)
+			{
+				clearTimeout(timeout);
+				timeout = null;
+			}
+
+			socket.connected = true;
+			cb(null);
+		});
+	}
+
+	waitWebServer();
+}
+
+function disconnectWeb()
+{
+	if(!timeout) return;
+
+	clearTimeout(timeout);
+	timeout = null;
 }

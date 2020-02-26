@@ -17,7 +17,8 @@
     "media",
     "player",
     "controller",
-    "mpv"
+    "mpv",
+    "vlc"
   ],
   "author": "Rafostar",
   "license": "MIT",

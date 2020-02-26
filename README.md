@@ -5,7 +5,7 @@
 [![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=TFVDFD88KQ322)
 [![Donate](https://img.shields.io/badge/Donate-PayPal.Me-lightgrey.svg)](https://www.paypal.me/Rafostar)
 
-Spawn media player app and control playback. Also allows reading player state through socket connection.
+Spawn media player app and control playback. Also allows reading player state through socket or web connection.
 
 ### Usage Example
 ```javascript
