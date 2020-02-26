@@ -1,5 +1,4 @@
 const noop = () => {};
-const helper = require('../helper');
 var previous =
 {
 	position: -1,
@@ -221,10 +220,9 @@ module.exports =
 
 				const checkDuration = () =>
 				{
-					if(previous.duration < 0)
-					{
-						this.command(['get_length']);
-					}
+					if(previous.duration >= 0) return;
+
+					this.command(['get_length']);
 				}
 
 				switch(foundName)
@@ -296,14 +294,14 @@ module.exports =
 
 		const onDataError = (err) =>
 		{
-			if(!resolved)
-			{
-				clearTimeout(timeout);
-				this.removeListener('data', onOutData);
-				this._setPlaybackInterval();
+			/* Callback was called */
+			if(resolved) return;
 
-				return cb(err);
-			}
+			clearTimeout(timeout);
+			this.removeListener('data', onOutData);
+			this._setPlaybackInterval();
+
+			return cb(err);
 		}
 
 		this.command([action], (err) =>
