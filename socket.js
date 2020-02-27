@@ -62,16 +62,21 @@ function connectUnix(socket, ipcPath, cb)
 
 	const onConnect = function()
 	{
+		if(!timeout) return;
+
 		clearTimeout(timeout);
 		timeout = null;
 
 		socket.connected = true;
+		socket.once('close', onDisconnect);
+
 		cb(null);
 	}
 
 	const onDisconnect = function()
 	{
 		socket.connected = false;
+		socket.removeListener('error', onError);
 	}
 
 	const onError = function()
@@ -81,7 +86,6 @@ function connectUnix(socket, ipcPath, cb)
 	}
 
 	socket.once('connect', onConnect);
-	socket.once('close', onDisconnect);
 	socket.on('error', onError);
 
 	var watcher = fs.watch(ipcPath, () =>
