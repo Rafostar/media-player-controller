@@ -70,6 +70,8 @@ module.exports =
 					break;
 				case 'volume':
 					value = parseFloat(value / 256);
+					if(value < 0)
+						continue;
 					break;
 				default:
 					if(value == 'true')
