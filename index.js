@@ -1,6 +1,7 @@
 const fs = require('fs');
 const net = require('net');
 const { spawn } = require('child_process');
+const debug = require('debug')('mpc');
 const socket = require('./socket');
 
 const noop = () => {};
@@ -54,13 +55,20 @@ module.exports = class PlayerController extends net.Socket
 		this._app = player._app || launchOpts.app;
 		this._forceEnglish = player._forceEnglish || false;
 
+		debug(`Launching ${this._app}...`);
+
 		var called = false;
 
 		if(typeof launchOpts.ipcPath !== 'string' || !launchOpts.ipcPath.length)
 			return cb(new Error('No IPC socket path provided!'));
 
+		if(this._connectType === 'socket')
+			debug('Player IPC:', launchOpts.ipcPath);
+
 		if(typeof launchOpts.media !== 'string' || !launchOpts.media.length)
 			return cb(new Error('No media source provided!'));
+
+		debug('Player media source:', launchOpts.media);
 
 		socket.connect(this, launchOpts, (err) =>
 		{
@@ -80,13 +88,14 @@ module.exports = class PlayerController extends net.Socket
 			)
 				this.init();
 
-			this.emit('app-launch');
-
 			if(
 				this._parseSocketData
 				&& typeof this._parseSocketData === 'function'
 			)
 				this.on('data', this._parseSocketData);
+
+			debug('Player launched successfully');
+			this.emit('app-launch');
 
 			return cb(null);
 		});
@@ -96,11 +105,19 @@ module.exports = class PlayerController extends net.Socket
 			detached: launchOpts.detached
 		};
 
+		debug('Player detached:', spawnOpts.detached);
+
 		if(this._forceEnglish)
+		{
+			debug('Forcing player english language');
 			spawnOpts.env = { ...process.env, LANG: 'C' };
+		}
 
 		if(!Array.isArray(launchOpts.args))
+		{
+			debug('No additional launch args specified');
 			launchOpts.args = [];
+		}
 
 		const spawnArgs = this._getSpawnArgs(launchOpts);
 
@@ -108,14 +125,35 @@ module.exports = class PlayerController extends net.Socket
 			this.process = spawn(this._app, spawnArgs, spawnOpts);
 		}
 		catch(err) {
+			debug(err);
+
 			if(called) return;
 
 			called = true;
 			return cb(err);
 		}
 
+		debug('Spawned new player process');
+
+		this.process.stdout.setEncoding('utf8');
+		this.process.stdout.setNoDelay(true);
+
+		const stdoutDebug = function(stdoutData)
+		{
+			if(debug.enabled)
+				debug(stdoutData);
+		}
+
+		this.process.stdout.on('data', stdoutDebug);
+
 		this.process.once('exit', (code) =>
 		{
+			if(this.process.stdout)
+				this.process.stdout.removeListener('data', stdoutDebug);
+
+			this.process = null;
+			debug('Media player process exit');
+
 			if(code && !called)
 			{
 				called = true;
@@ -137,7 +175,6 @@ module.exports = class PlayerController extends net.Socket
 			{
 				if(err) this.emit('app-error', err);
 
-				this.process = null;
 				this.emit('app-exit', code);
 			});
 		});
@@ -151,8 +188,13 @@ module.exports = class PlayerController extends net.Socket
 		{
 			this._playerQuit(err =>
 			{
-				if(!err) return cb(null);
+				if(!err)
+				{
+					debug('Stopped media player process');
+					return cb(null);
+				}
 
+				debug('Killing media player process...');
 				this._killPlayer(cb);
 			});
 		}
@@ -173,6 +215,8 @@ module.exports = class PlayerController extends net.Socket
 		{
 			try { this.process.kill('SIGINT'); }
 			catch(err) { return cb(err); }
+
+			debug('Killed media player process');
 		}
 
 		cb(null);

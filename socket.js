@@ -1,4 +1,5 @@
 const fs = require('fs');
+const debug = require('debug')('mpc:socket');
 const helper = require('./helper');
 const noop = () => {};
 
@@ -47,8 +48,13 @@ module.exports =
 
 function connectUnix(socket, ipcPath, cb)
 {
+	debug('Connecting to UNIX socket...');
+
 	if(!fs.existsSync(ipcPath))
+	{
 		fs.writeFileSync(ipcPath);
+		debug(`Created new socket file: ${ipcPath}`);
+	}
 
 	socket.setEncoding('utf8');
 	socket.setNoDelay(true);
@@ -57,7 +63,13 @@ function connectUnix(socket, ipcPath, cb)
 	timeout = setTimeout(() =>
 	{
 		timeout = null;
-		cb(new Error('Socket connect timeout'));
+		socket.removeListener('connect', onConnect);
+		socket.removeListener('error', onError);
+
+		var errMsg = 'Socket connect timeout';
+		debug(errMsg);
+
+		cb(new Error(errMsg));
 	}, 10000);
 
 	const onConnect = function()
@@ -70,6 +82,7 @@ function connectUnix(socket, ipcPath, cb)
 		socket.connected = true;
 		socket.once('close', onDisconnect);
 
+		debug('Socket connected');
 		cb(null);
 	}
 
@@ -90,6 +103,8 @@ function connectUnix(socket, ipcPath, cb)
 
 	var watcher = fs.watch(ipcPath, () =>
 	{
+		debug('Player accessed socket file');
+
 		watcher.close();
 		socket.connect(ipcPath);
 	});

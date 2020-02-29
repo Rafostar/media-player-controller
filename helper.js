@@ -1,5 +1,5 @@
 const http = require('http');
-const debug = require('debug')('mpc');
+const debug = require('debug')('mpc:helper');
 const xml2js = require('xml2js').parseString;
 
 module.exports =
