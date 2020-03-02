@@ -69,7 +69,7 @@ module.exports =
 						continue;
 					break;
 				case 'volume':
-					value = parseFloat(value / 256);
+					value = Math.round(value / 2.56) / 100;
 					if(value < 0)
 						continue;
 					break;
@@ -146,8 +146,14 @@ module.exports =
 		{
 			if(err) return cb(err);
 
-			this._parseRequest(result);
-			cb(null);
+			httpOpts.path = '/requests/status.xml';
+			helper.httpRequest(httpOpts, (err, result) =>
+			{
+				if(err) return cb(err);
+
+				this._parseRequest(result);
+				cb(null);
+			});
 		});
 	},
 
