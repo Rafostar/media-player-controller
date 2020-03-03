@@ -84,7 +84,7 @@ module.exports =
 		this.command(['pause'], cb);
 	},
 
-	load: function(media, cb)
+	_load: function(media, cb)
 	{
 		cb = cb || noop;
 		this.command(['clear'], (err) =>

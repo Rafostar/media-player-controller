@@ -183,7 +183,7 @@ module.exports =
 		this.command(['pl_pause'], cb);
 	},
 
-	load: function(media, cb)
+	_load: function(media, cb)
 	{
 		cb = cb || noop;
 		var delId = previous.id;

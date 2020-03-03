@@ -61,7 +61,7 @@ module.exports =
 		this.command(['cycle', 'pause'], cb);
 	},
 
-	load: function(media, cb)
+	_load: function(media, cb)
 	{
 		cb = cb || noop;
 		this.command(['loadfile', media, 'replace'], cb);

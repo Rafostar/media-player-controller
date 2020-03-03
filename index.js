@@ -30,6 +30,8 @@ module.exports = class PlayerController extends net.Socket
 		this.destroyed = false;
 		this.opts = { ...defaults, ...options };
 		this.process = null;
+
+		if(debug.enabled) this.on('playback', debug);
 	}
 
 	launch(cb)
@@ -178,6 +180,18 @@ module.exports = class PlayerController extends net.Socket
 				this.emit('app-exit', code);
 			});
 		});
+	}
+
+	load(media, cb)
+	{
+		if(!media || typeof media === 'function')
+		{
+			cb = media;
+			media = this.opts.media;
+		}
+
+		cb = cb || noop;
+		this._load(media, cb);
 	}
 
 	quit(cb)
