@@ -186,6 +186,8 @@ module.exports =
 	_load: function(media, cb)
 	{
 		cb = cb || noop;
+		previous.duration = null;
+
 		var delId = previous.id;
 		this.command(['in_play', `input=${media}`], (err) =>
 		{
