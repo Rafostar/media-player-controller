@@ -216,6 +216,22 @@ module.exports = class PlayerController extends net.Socket
 			return cb(new Error('No open player process found!'));
 	}
 
+	_getProbeTime(isPlaying, currTime, position, duration)
+	{
+		var probeTime = 1000;
+
+		if(isPlaying && currTime >= 1)
+		{
+			var calcTime = (position * duration);
+			var waitTime = (currTime + 1 - calcTime) * 1000;
+
+			probeTime = (waitTime >= 350) ? Math.floor(waitTime - 200) : 100;
+		}
+
+		debug(`Next probe in: ${probeTime}ms`);
+		return probeTime;
+	}
+
 	_getSupportedPlayers()
 	{
 		return Object.keys(players);
