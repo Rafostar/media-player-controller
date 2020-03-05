@@ -39,14 +39,10 @@ module.exports =
 
 			if(!err && this._intervalEnabled)
 			{
-				result.time = parseInt(result.time);
-				result.length = parseInt(result.length);
 				this._parseRequest(result);
 
 				var isPlaying = (result.state === 'playing');
-				time = this._getProbeTime(
-					isPlaying, result.time, result.position, result.length
-				);
+				time = this._getProbeTime(isPlaying, result.time);
 			}
 
 			if(this._intervalEnabled)
@@ -70,6 +66,7 @@ module.exports =
 					break;
 				case 'time-pos':
 				case 'duration':
+					value = parseInt(value);
 					if(value < 0)
 						continue;
 					break;
@@ -156,10 +153,7 @@ module.exports =
 			{
 				if(err) return cb(err);
 
-				result.time = parseInt(result.time);
-				result.length = parseInt(result.length);
 				this._parseRequest(result);
-
 				cb(null);
 			});
 		});

@@ -30,13 +30,20 @@ module.exports = class PlayerController extends net.Socket
 		this.destroyed = false;
 		this.opts = { ...defaults, ...options };
 		this.process = null;
+		this.prevProbeAt = null;
+		this.probeTime = 950;
 
-		if(debug.enabled) this.on('playback', debug);
+		if(debug.enabled)
+			this.on('playback', debug);
 	}
 
 	launch(cb)
 	{
 		cb = cb || noop;
+
+		/* Recalculate probe time from start */
+		this.prevProbeAt = null;
+		this.probeTime = 950;
 
 		/*
 		  Allows controller opts to be edited later on
@@ -216,20 +223,26 @@ module.exports = class PlayerController extends net.Socket
 			return cb(new Error('No open player process found!'));
 	}
 
-	_getProbeTime(isPlaying, currTime, position, duration)
+	_getProbeTime(isPlaying, currTime)
 	{
-		var probeTime = 1000;
+		if(!isPlaying || !currTime)
+			return 1000;
 
-		if(isPlaying && currTime >= 1)
+		if(currTime <= 0)
+			return 200;
+
+		if(this.prevProbeAt == currTime)
 		{
-			var calcTime = (position * duration);
-			var waitTime = (currTime + 1 - calcTime) * 1000;
-
-			probeTime = (waitTime >= 350) ? Math.floor(waitTime - 200) : 100;
+			this.probeTime += 10;
+			return 50;
 		}
+		else
+			this.probeTime -= 10;
 
-		debug(`Next probe in: ${probeTime}ms`);
-		return probeTime;
+		debug(`Next probe in: ${this.probeTime}ms`);
+		this.prevProbeAt = currTime;
+
+		return this.probeTime;
 	}
 
 	_getSupportedPlayers()
