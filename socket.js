@@ -92,8 +92,10 @@ function connectUnix(socket, ipcPath, cb)
 		socket.removeListener('error', onError);
 	}
 
-	const onError = function()
+	const onError = function(err)
 	{
+		debug(err);
+
 		if(!socket.connecting)
 			socket.connect(ipcPath);
 	}
@@ -101,12 +103,21 @@ function connectUnix(socket, ipcPath, cb)
 	socket.once('connect', onConnect);
 	socket.on('error', onError);
 
-	var watcher = fs.watch(ipcPath, () =>
+	var accessDone = false;
+
+	var watcher = fs.watch(ipcPath, (eventType) =>
 	{
-		debug('Player accessed socket file');
+		debug('Player accessed socket event: ' + eventType);
+
+		if(eventType === 'change')
+			return;
+		else if(!accessDone)
+			return accessDone = true;
 
 		watcher.close();
 		socket.connect(ipcPath);
+
+		debug('File watcher closed');
 	});
 }
 
