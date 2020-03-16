@@ -10,6 +10,7 @@ const playersArray = fs.readdirSync(__dirname + '/players');
 const defaults = {
 	app: 'mpv',
 	args: [],
+	cwd: null,
 	media: null,
 	ipcPath: '/tmp/media-ctl-socket',
 	httpPort: 9280,
@@ -111,7 +112,9 @@ module.exports = class PlayerController extends net.Socket
 
 		var spawnOpts = {
 			stdio: ['ignore', 'pipe', 'ignore'],
-			detached: launchOpts.detached
+			detached: launchOpts.detached,
+			cwd: launchOpts.cwd,
+			windowsHide: true
 		};
 
 		debug('Player detached:', spawnOpts.detached);
