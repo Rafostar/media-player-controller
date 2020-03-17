@@ -62,7 +62,10 @@ module.exports =
 					value = (value === 'paused');
 					break;
 				case 'eof-reached':
-					value = (value === 'stopped');
+					value = (
+						previous['time-pos'] !== 'undefined'
+						&& value === 'stopped'
+					);
 					break;
 				case 'time-pos':
 				case 'duration':
