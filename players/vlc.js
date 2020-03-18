@@ -12,11 +12,15 @@ var playerData =
 	'eof-reached': 'state'
 };
 
+/* Prevent emiting 'eof-reached' at launch */
+var launched = false;
+
 module.exports =
 {
 	init: function()
 	{
 		previous = {};
+		launched = false;
 
 		this._intervalEnabled = true;
 		this._getPlayerData();
@@ -62,16 +66,15 @@ module.exports =
 					value = (value === 'paused');
 					break;
 				case 'eof-reached':
-					value = (
-						previous['time-pos'] !== 'undefined'
-						&& value === 'stopped'
-					);
+					value = (launched && value === 'stopped');
 					break;
 				case 'time-pos':
 				case 'duration':
 					value = parseInt(value);
 					if(value < 0)
 						continue;
+					else if(!launched && value > 0)
+						launched = true;
 					break;
 				case 'volume':
 					value = Math.round(value / 2.56) / 100;
@@ -119,6 +122,7 @@ module.exports =
 
 		var presetArgs = [
 			'--no-play-and-exit',
+			'--no-qt-recentplay',
 			'--qt-continue', '0',
 			'--image-duration', '-1',
 			'--extraintf', 'http',
