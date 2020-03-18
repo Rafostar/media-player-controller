@@ -117,8 +117,7 @@ module.exports = class PlayerController extends net.Socket
 		var spawnOpts = {
 			stdio: ['ignore', 'pipe', 'ignore'],
 			detached: launchOpts.detached,
-			cwd: launchOpts.cwd,
-			windowsHide: true
+			cwd: launchOpts.cwd
 		};
 
 		debug('Player detached:', spawnOpts.detached);
