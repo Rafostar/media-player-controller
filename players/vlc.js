@@ -14,12 +14,14 @@ var playerData =
 
 /* Prevent emiting 'eof-reached' at launch */
 var launched = false;
+var streams;
 
 module.exports =
 {
 	init: function()
 	{
 		previous = {};
+		streams = {};
 		launched = false;
 
 		this._intervalEnabled = true;
@@ -27,6 +29,7 @@ module.exports =
 	},
 
 	_connectType: 'web',
+	_forceEnglish: true,
 
 	_getPlayerData: function()
 	{
@@ -104,6 +107,44 @@ module.exports =
 
 		if(result.currentplid > 0)
 			previous.id = result.currentplid;
+
+		if(
+			!result.information
+			|| !result.information.category
+			|| !result.information.category.length
+			|| streams.count === result.information.category.length
+		)
+			return;
+
+		streams = {
+			count: result.information.category.length,
+			video: [],
+			audio: [],
+			subs: []
+		};
+
+		result.information.category.forEach(cat =>
+		{
+			if(!cat['$'].name.startsWith('Stream')) return;
+
+			var index = cat['$'].name.split(' ')[1];
+			var streamType = cat.info.find(inf => inf['$'].name === 'Type');
+
+			switch(streamType._)
+			{
+				case 'Video':
+					streams.video.push(index);
+					break;
+				case 'Audio':
+					streams.audio.push(index);
+					break;
+				case 'Subtitle':
+					streams.subs.push(index);
+					break;
+				default:
+					break;
+			}
+		});
 	},
 
 	cleanup: function()
@@ -202,6 +243,7 @@ module.exports =
 		{
 			if(err) return cb(err);
 
+			streams = {};
 			this.command(['pl_delete', `id=${delId}`], cb);
 		});
 	},
@@ -251,19 +293,54 @@ module.exports =
 	cycleVideo: function(cb)
 	{
 		cb = cb || noop;
-		this.command(['video_track', `val=1`], cb);
+
+		if(!streams.video.length)
+			return cb(new Error('No video tracks'));
+
+		this.command(['video_track', `val=${streams.video[0]}`], cb);
 	},
 
 	cycleAudio: function(cb)
 	{
 		cb = cb || noop;
-		this.command(['audio_track', `val=1`], cb);
+
+		if(!streams.audio.length)
+			return cb(new Error('No audio tracks'));
+
+		this.command(['audio_track', `val=${streams.audio[0]}`], cb);
 	},
 
 	cycleSubs: function(cb)
 	{
 		cb = cb || noop;
-		this.command(['subtitle_track', `val=1`], cb);
+
+		if(!streams.subs.length)
+			return cb(new Error('No subtitles tracks'));
+
+		this.command(['subtitle_track', `val=${streams.subs[0]}`], cb);
+	},
+
+	addSubs: function(subsPath, cb)
+	{
+		cb = cb || noop;
+
+		if(!subsPath)
+			return cb(new Error('No subtitles path specified'));
+
+		this.command(['addsubtitle', `val=${subsPath}`], (err) =>
+		{
+			if(err) return cb(err);
+
+			if(!streams.subs.length)
+				return cb(new Error('No subtitles tracks'));
+
+			var lastSubs = Math.max.apply(null, streams.subs);
+
+			/* Give VLC some time to load file */
+			setTimeout(() => {
+				this.command(['subtitle_track', `val=${lastSubs}`], cb);
+			}, 100);
+		});
 	},
 
 	setFullscreen: function(isEnabled, cb)

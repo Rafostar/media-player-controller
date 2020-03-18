@@ -117,6 +117,12 @@ module.exports =
 		this.command(['cycle', 'sub'], cb);
 	},
 
+	addSubs: function(subsPath, cb)
+	{
+		cb = cb || noop;
+		return cb(new Error('Adding subs on MPV not supported yet.'));
+	},
+
 	setFullscreen: function(isEnabled, cb)
 	{
 		cb = cb || noop;
