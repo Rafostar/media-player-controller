@@ -46,6 +46,9 @@ module.exports = class PlayerController extends net.Socket
 		this.prevProbeAt = null;
 		this.probeTime = 950;
 
+		/* Reemit "playback-started" event */
+		this.removeListener('playback', this._checkPlaybackStarted);
+
 		/*
 		  Allows controller opts to be edited later on
 		  without affecting current spawn
@@ -106,6 +109,7 @@ module.exports = class PlayerController extends net.Socket
 
 			debug('Player launched successfully');
 			this.emit('app-launch');
+			this.on('playback', this._checkPlaybackStarted);
 
 			return cb(null);
 		});
@@ -201,7 +205,14 @@ module.exports = class PlayerController extends net.Socket
 		}
 
 		cb = cb || noop;
-		this._load(media, cb);
+
+		this.removeListener('playback', this._checkPlaybackStarted);
+		this._load(media, (err) =>
+		{
+			if(!err) this.on('playback', this._checkPlaybackStarted);
+
+			return cb(err);
+		});
 	}
 
 	quit(cb)
@@ -251,6 +262,20 @@ module.exports = class PlayerController extends net.Socket
 	_getSupportedPlayers()
 	{
 		return Object.keys(players);
+	}
+
+	_checkPlaybackStarted(event)
+	{
+		if(
+			event.name !== 'time-pos'
+			|| event.value < 1
+		)
+			return;
+
+		this.removeListener('playback', this._checkPlaybackStarted);
+		this.emit('playback-started', true);
+
+		debug('Emited "playback-started" event');
 	}
 
 	_killPlayer(cb)
