@@ -145,6 +145,8 @@ module.exports =
 					break;
 			}
 		});
+
+		this.emit('streams-changed');
 	},
 
 	cleanup: function()
@@ -327,19 +329,49 @@ module.exports =
 		if(!subsPath)
 			return cb(new Error('No subtitles path specified'));
 
-		this.command(['addsubtitle', `val=${subsPath}`], (err) =>
+		var initialSubsLength = streams.subs.length;
+
+		const setAddedSubs = () =>
 		{
-			if(err) return cb(err);
+			if(this.addSubsTimeout)
+			{
+				clearTimeout(this.addSubsTimeout);
+				this.addSubsTimeout = null;
+			}
 
 			if(!streams.subs.length)
 				return cb(new Error('No subtitles tracks'));
+			else if(initialSubsLength === streams.subs.length)
+				return cb(new Error('Subtitles track was not added'));
 
 			var lastSubs = Math.max.apply(null, streams.subs);
+			this.command(['subtitle_track', `val=${lastSubs}`], cb);
+		}
 
-			/* Give VLC some time to load file */
-			setTimeout(() => {
-				this.command(['subtitle_track', `val=${lastSubs}`], cb);
-			}, 100);
+		this.addSubsTimeout = setTimeout(() =>
+		{
+			this.addSubsTimeout = null;
+			this.removeListener('streams-changed', setAddedSubs);
+
+			cb(new Error('Add subtitles timeout'));
+		}, 5000);
+
+		this.once('streams-changed', setAddedSubs);
+
+		this.command(['addsubtitle', `val=${subsPath}`], (err) =>
+		{
+			/* When no error wait for "streams-changed" event */
+			if(!err) return;
+
+			this.removeListener('streams-changed', setAddedSubs);
+
+			if(this.addSubsTimeout)
+			{
+				clearTimeout(this.addSubsTimeout);
+				this.addSubsTimeout = null;
+			}
+
+			cb(err);
 		});
 	},
 
