@@ -303,7 +303,20 @@ module.exports =
 		cb = cb || noop;
 		value = (value > 0) ? parseInt(value * 256) : 0;
 
-		this.command(['volume', `val=${value}`], cb);
+		this.command(['volume', `val=${value}`], (err) =>
+		{
+			if(err) return cb(err);
+
+			/* Setting volume on VLC sometimes requires another refresh */
+			httpOpts.path = '/requests/status.xml';
+			helper.httpRequest(httpOpts, (err, result) =>
+			{
+				if(err) return cb(err);
+
+				this._parseRequest(result);
+				cb(null);
+			});
+		});
 	},
 
 	setRepeat: function(isEnabled, cb)
