@@ -16,6 +16,7 @@ var playerData =
 var launched = false;
 var loading = false;
 var streams;
+var currStreams;
 
 module.exports =
 {
@@ -23,6 +24,7 @@ module.exports =
 	{
 		previous = {};
 		streams = {};
+		currStreams = {};
 		launched = false;
 		loading = false;
 
@@ -126,9 +128,10 @@ module.exports =
 			subs: []
 		};
 
-		result.information.category.forEach(cat =>
+		for(var cat of result.information.category)
 		{
-			if(!cat['$'].name.startsWith('Stream')) return;
+			if(!cat['$'].name.startsWith('Stream'))
+				continue;
 
 			var index = cat['$'].name.split(' ')[1];
 			var streamType = cat.info.find(inf => inf['$'].name === 'Type');
@@ -147,7 +150,16 @@ module.exports =
 				default:
 					break;
 			}
-		});
+		}
+
+		for(var type in streams)
+		{
+			if(type === 'count')
+				continue;
+
+			if(streams[type].length > 1)
+				streams[type].sort();
+		}
 
 		this.emit('streams-changed');
 	},
@@ -262,6 +274,8 @@ module.exports =
 		{
 			if(err) return cb(err);
 
+			currStreams = {};
+
 			this.command(['pl_delete', `id=${delId}`], (err) =>
 			{
 				if(err) return cb(err);
@@ -349,30 +363,46 @@ module.exports =
 	{
 		cb = cb || noop;
 
-		if(!streams.video.length)
+		if(!streams.video || !streams.video.length)
 			return cb(new Error('No video tracks'));
 
-		this.command(['video_track', `val=${streams.video[0]}`], cb);
+		var value = this._cycleStream('video');
+		this.command(['video_track', `val=${value}`], cb);
 	},
 
 	cycleAudio: function(cb)
 	{
 		cb = cb || noop;
 
-		if(!streams.audio.length)
+		if(!streams.audio || !streams.audio.length)
 			return cb(new Error('No audio tracks'));
 
-		this.command(['audio_track', `val=${streams.audio[0]}`], cb);
+		var value = this._cycleStream('audio');
+		this.command(['audio_track', `val=${value}`], cb);
 	},
 
 	cycleSubs: function(cb)
 	{
 		cb = cb || noop;
 
-		if(!streams.subs.length)
+		if(!streams.subs || !streams.subs.length)
 			return cb(new Error('No subtitles tracks'));
 
-		this.command(['subtitle_track', `val=${streams.subs[0]}`], cb);
+		var value = this._cycleStream('subs');
+		this.command(['subtitle_track', `val=${value}`], cb);
+	},
+
+	_cycleStream: function(streamType)
+	{
+		if(!currStreams[streamType])
+			currStreams[streamType] = 0;
+
+		currStreams[streamType]++;
+
+		if(currStreams[streamType] > streams[streamType].length - 1)
+			return currStreams[streamType] = -1;
+
+		return streams[streamType][currStreams[streamType]];
 	},
 
 	addSubs: function(subsPath, cb)
