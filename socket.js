@@ -10,11 +10,31 @@ module.exports = class PlayerSocket extends net.Socket
 {
 	constructor()
 	{
-		super();
+		super({ allowHalfOpen: true });
 
 		this.setEncoding('utf8');
 		this.setNoDelay(true);
+
+		this.ipcPath = null;
 		this.connected = false;
+
+		this.on('connect', () =>
+		{
+			this.connected = true;
+			debug('Socket connected');
+		});
+
+		this.on('close', (hadError) =>
+		{
+			this.connected = false;
+
+			/* Errors are handled on "error" listener */
+			if(hadError) return;
+
+			debug('Socket disconnected');
+		});
+
+		this.on('error', this._onUnixError);
 	}
 
 	connectSocket(opts, cb)
@@ -26,7 +46,8 @@ module.exports = class PlayerSocket extends net.Socket
 		switch(this._connectType)
 		{
 			case 'socket':
-				this._connectUnix(opts.ipcPath, cb);
+				this.ipcPath = opts.ipcPath;
+				this._connectUnix(cb);
 				break;
 			case 'web':
 				this._connectWeb(opts.httpPort, cb);
@@ -46,7 +67,7 @@ module.exports = class PlayerSocket extends net.Socket
 		switch(this._connectType)
 		{
 			case 'socket':
-				this._disconnectUnix(opts.ipcPath, cb);
+				this._disconnectUnix(cb);
 				break;
 			case 'web':
 				this._disconnectWeb();
@@ -59,78 +80,21 @@ module.exports = class PlayerSocket extends net.Socket
 		}
 	}
 
-	_connectUnix(ipcPath, cb)
+	_connectUnix(cb)
 	{
+		if(this.connected) return cb(null);
+
 		debug('Connecting to UNIX socket...');
 
-		if(!fs.existsSync(ipcPath))
+		if(!fs.existsSync(this.ipcPath))
 		{
-			fs.writeFileSync(ipcPath);
-			debug(`Created new socket file: ${ipcPath}`);
+			fs.writeFileSync(this.ipcPath);
+			debug(`Created new socket file: ${this.ipcPath}`);
 		}
-
-		this.connected = false;
-
-		timeout = setTimeout(() =>
-		{
-			timeout = null;
-			this.removeListener('connect', onConnect);
-			debug('Removed "connect" event listener');
-
-			this.removeListener('error', onError);
-			debug('Removed "error" event listener');
-
-			var errMsg = 'Socket connect timeout';
-			debug(errMsg);
-
-			cb(new Error(errMsg));
-		}, 10000);
-
-		const onConnect = function()
-		{
-			/* Listener is "once", so auto removed on event */
-			debug('Removed "connect" event listener');
-
-			if(!timeout) return;
-
-			clearTimeout(timeout);
-			timeout = null;
-
-			this.connected = true;
-			this.once('close', onDisconnect);
-			debug('Added "close" event listener');
-
-			debug('Socket connected');
-			cb(null);
-		}
-
-		const onDisconnect = function()
-		{
-			/* Listener is "once", so auto removed on event */
-			debug('Removed "close" event listener');
-
-			this.connected = false;
-			this.removeListener('error', onError);
-			debug('Removed "error" event listener');
-		}
-
-		const onError = function(err)
-		{
-			debug(err);
-
-			if(!this.connecting)
-				this.connect(ipcPath);
-		}
-
-		this.once('connect', onConnect);
-		debug('Added "connect" event listener');
-
-		this.on('error', onError);
-		debug('Added "error" event listener');
 
 		var accessDone = false;
 
-		var watcher = fs.watch(ipcPath, (eventType) =>
+		var watcher = fs.watch(this.ipcPath, (eventType) =>
 		{
 			debug('Player accessed socket event: ' + eventType);
 
@@ -140,13 +104,32 @@ module.exports = class PlayerSocket extends net.Socket
 				return accessDone = true;
 
 			watcher.close();
-			this.connect(ipcPath);
-
 			debug('File watcher closed');
+
+			if(timeout)
+			{
+				clearTimeout(timeout);
+				timeout = null;
+			}
+
+			this.connect(this.ipcPath);
+
+			cb(null);
 		});
+
+		timeout = setTimeout(() =>
+		{
+			timeout = null;
+			watcher.close();
+
+			var errMsg = 'Socket connect timeout';
+			debug(errMsg);
+
+			cb(new Error(errMsg));
+		}, 10000);
 	}
 
-	_disconnectUnix(ipcPath, cb)
+	_disconnectUnix(cb)
 	{
 		if(timeout)
 		{
@@ -157,12 +140,10 @@ module.exports = class PlayerSocket extends net.Socket
 		if(!this.destroyed)
 		{
 			this.destroy();
-			this.connected = false;
-
 			debug('Socket destroyed');
 		}
 
-		fs.access(ipcPath, fs.constants.F_OK, (err) =>
+		fs.access(this.ipcPath, fs.constants.F_OK, (err) =>
 		{
 			if(err)
 			{
@@ -172,16 +153,22 @@ module.exports = class PlayerSocket extends net.Socket
 				return cb(err);
 			}
 
-			fs.unlink(ipcPath, (err) =>
+			fs.unlink(this.ipcPath, (err) =>
 			{
 				if(err)
 					debug('Could not remove socket file');
 				else
-					debug('Socket disconnected');
+					debug('Socket file removed');
 
 				cb(err);
 			});
 		});
+	}
+
+	_onUnixError(err)
+	{
+		if(!this.connecting)
+			this.connect(this.ipcPath);
 	}
 
 	_connectWeb(httpPort, cb)
