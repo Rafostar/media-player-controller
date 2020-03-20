@@ -246,7 +246,9 @@ module.exports = class PlayerController extends net.Socket
 
 		if(this.prevProbeAt == currTime)
 		{
-			this.probeTime += 10;
+			if(this.probeTime < 1100)
+				this.probeTime += 10;
+
 			return 50;
 		}
 		else
