@@ -14,6 +14,7 @@ var playerData =
 
 /* Prevent emiting 'eof-reached' at launch */
 var launched = false;
+var loading = false;
 var streams;
 
 module.exports =
@@ -23,6 +24,7 @@ module.exports =
 		previous = {};
 		streams = {};
 		launched = false;
+		loading = false;
 
 		this._intervalEnabled = true;
 		this._getPlayerData();
@@ -69,14 +71,14 @@ module.exports =
 					value = (value === 'paused');
 					break;
 				case 'eof-reached':
-					value = (launched && value === 'stopped');
+					value = (launched && !loading && value === 'stopped');
 					break;
 				case 'time-pos':
 				case 'duration':
 					value = parseInt(value);
 					if(value < 0)
 						continue;
-					else if(!launched && value > 0)
+					else if(!launched && key === 'time-pos' && value > 0)
 						launched = true;
 					break;
 				case 'volume':
@@ -112,7 +114,8 @@ module.exports =
 			!result.information
 			|| !result.information.category
 			|| !result.information.category.length
-			|| streams.count === result.information.category.length
+			|| (streams.count
+			&& streams.count === result.information.category.length)
 		)
 			return;
 
@@ -239,14 +242,51 @@ module.exports =
 	{
 		cb = cb || noop;
 		previous.duration = null;
+		loading = true;
+		var changeTimeout;
+
+		const onStreamsChange = function()
+		{
+			if(changeTimeout)
+			{
+				clearTimeout(changeTimeout);
+				changeTimeout = null;
+			}
+
+			loading = false;
+			cb(null);
+		}
 
 		var delId = previous.id;
 		this.command(['in_play', `input=${media}`], (err) =>
 		{
 			if(err) return cb(err);
 
-			streams = {};
-			this.command(['pl_delete', `id=${delId}`], cb);
+			this.command(['pl_delete', `id=${delId}`], (err) =>
+			{
+				if(err) return cb(err);
+
+				changeTimeout = setTimeout(() =>
+				{
+					changeTimeout = null;
+					loading = false;
+					this.removeListener('streams-changed', onStreamsChange);
+
+					cb(new Error('Streams change timeout'));
+				}, 15000);
+
+				this.once('streams-changed', onStreamsChange);
+				streams = {};
+
+				httpOpts.path = '/requests/status.xml';
+				helper.httpRequest(httpOpts, (err, result) =>
+				{
+					/* Ignore this req and wait for next */
+					if(err) return;
+
+					this._parseRequest(result);
+				});
+			});
 		});
 	},
 
