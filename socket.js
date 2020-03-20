@@ -1,160 +1,201 @@
 const fs = require('fs');
+const net = require('net');
 const debug = require('debug')('mpc:socket');
 const helper = require('./helper');
 const noop = () => {};
 
 var timeout;
 
-module.exports =
+module.exports = class PlayerSocket extends net.Socket
 {
-	connect: function(socket, opts, cb)
+	constructor()
+	{
+		super();
+
+		this.setEncoding('utf8');
+		this.setNoDelay(true);
+		this.connected = false;
+	}
+
+	connectSocket(opts, cb)
 	{
 		cb = cb || noop;
 
-		switch(socket._connectType)
+		debug(`Connecting ${this._connectType}...`);
+
+		switch(this._connectType)
 		{
 			case 'socket':
-				connectUnix(socket, opts.ipcPath, cb);
+				this._connectUnix(opts.ipcPath, cb);
 				break;
 			case 'web':
-				connectWeb(socket, opts.httpPort, cb);
+				this._connectWeb(opts.httpPort, cb);
 				break;
 			default:
-				cb(new Error(`Unsupported connection: ${connMethod}`));
+				cb(new Error(`Unsupported connection: ${this._connectType}`));
 				break;
 		}
-	},
+	}
 
-	disconnect: function(socket, opts, cb)
+	disconnectSocket(opts, cb)
 	{
 		cb = cb || noop;
 
-		switch(socket._connectType)
+		debug(`Disconnecting ${this._connectType}...`);
+
+		switch(this._connectType)
 		{
 			case 'socket':
-				disconnectUnix(socket, opts.ipcPath, cb);
+				this._disconnectUnix(opts.ipcPath, cb);
 				break;
 			case 'web':
-				disconnectWeb();
-				socket.connected = false;
+				this._disconnectWeb();
+				this.connected = false;
 				cb(null);
 				break;
 			default:
-				cb(new Error(`Unsupported disconnection: ${connMethod}`));
+				cb(new Error(`Unsupported disconnection: ${this._connectType}`));
 				break;
 		}
 	}
-}
 
-function connectUnix(socket, ipcPath, cb)
-{
-	debug('Connecting to UNIX socket...');
-
-	if(!fs.existsSync(ipcPath))
+	_connectUnix(ipcPath, cb)
 	{
-		fs.writeFileSync(ipcPath);
-		debug(`Created new socket file: ${ipcPath}`);
+		debug('Connecting to UNIX socket...');
+
+		if(!fs.existsSync(ipcPath))
+		{
+			fs.writeFileSync(ipcPath);
+			debug(`Created new socket file: ${ipcPath}`);
+		}
+
+		this.connected = false;
+
+		timeout = setTimeout(() =>
+		{
+			timeout = null;
+			this.removeListener('connect', onConnect);
+			debug('Removed "connect" event listener');
+
+			this.removeListener('error', onError);
+			debug('Removed "error" event listener');
+
+			var errMsg = 'Socket connect timeout';
+			debug(errMsg);
+
+			cb(new Error(errMsg));
+		}, 10000);
+
+		const onConnect = function()
+		{
+			/* Listener is "once", so auto removed on event */
+			debug('Removed "connect" event listener');
+
+			if(!timeout) return;
+
+			clearTimeout(timeout);
+			timeout = null;
+
+			this.connected = true;
+			this.once('close', onDisconnect);
+			debug('Added "close" event listener');
+
+			debug('Socket connected');
+			cb(null);
+		}
+
+		const onDisconnect = function()
+		{
+			/* Listener is "once", so auto removed on event */
+			debug('Removed "close" event listener');
+
+			this.connected = false;
+			this.removeListener('error', onError);
+			debug('Removed "error" event listener');
+		}
+
+		const onError = function(err)
+		{
+			debug(err);
+
+			if(!this.connecting)
+				this.connect(ipcPath);
+		}
+
+		this.once('connect', onConnect);
+		debug('Added "connect" event listener');
+
+		this.on('error', onError);
+		debug('Added "error" event listener');
+
+		var accessDone = false;
+
+		var watcher = fs.watch(ipcPath, (eventType) =>
+		{
+			debug('Player accessed socket event: ' + eventType);
+
+			if(eventType === 'change')
+				return;
+			else if(!accessDone)
+				return accessDone = true;
+
+			watcher.close();
+			this.connect(ipcPath);
+
+			debug('File watcher closed');
+		});
 	}
 
-	socket.setEncoding('utf8');
-	socket.setNoDelay(true);
-	socket.connected = false;
-
-	timeout = setTimeout(() =>
+	_disconnectUnix(ipcPath, cb)
 	{
-		timeout = null;
-		socket.removeListener('connect', onConnect);
-		socket.removeListener('error', onError);
+		if(timeout)
+		{
+			clearTimeout(timeout);
+			timeout = null;
+		}
 
-		var errMsg = 'Socket connect timeout';
-		debug(errMsg);
+		if(!this.destroyed)
+		{
+			this.destroy();
+			this.connected = false;
 
-		cb(new Error(errMsg));
-	}, 10000);
+			debug('Socket destroyed');
+		}
 
-	const onConnect = function()
-	{
-		if(!timeout) return;
+		fs.access(ipcPath, fs.constants.F_OK, (err) =>
+		{
+			if(err)
+			{
+				debug('No access to socket file');
+				debug(err);
 
-		clearTimeout(timeout);
-		timeout = null;
+				return cb(err);
+			}
 
-		socket.connected = true;
-		socket.once('close', onDisconnect);
+			fs.unlink(ipcPath, (err) =>
+			{
+				if(err)
+					debug('Could not remove socket file');
+				else
+					debug('Socket disconnected');
 
-		debug('Socket connected');
-		cb(null);
+				cb(err);
+			});
+		});
 	}
 
-	const onDisconnect = function()
+	_connectWeb(httpPort, cb)
 	{
-		socket.connected = false;
-		socket.removeListener('error', onError);
+		timeout = setTimeout(() => timeout = null, 10000);
+		this._waitWebServer(httpPort, cb);
 	}
 
-	const onError = function(err)
-	{
-		debug(err);
-
-		if(!socket.connecting)
-			socket.connect(ipcPath);
-	}
-
-	socket.once('connect', onConnect);
-	socket.on('error', onError);
-
-	var accessDone = false;
-
-	var watcher = fs.watch(ipcPath, (eventType) =>
-	{
-		debug('Player accessed socket event: ' + eventType);
-
-		if(eventType === 'change')
-			return;
-		else if(!accessDone)
-			return accessDone = true;
-
-		watcher.close();
-		socket.connect(ipcPath);
-
-		debug('File watcher closed');
-	});
-}
-
-function disconnectUnix(socket, ipcPath, cb)
-{
-	if(timeout)
-	{
-		clearTimeout(timeout);
-		timeout = null;
-	}
-
-	if(socket && !socket.destroyed)
-	{
-		socket.removeAllListeners('error');
-		socket.destroy();
-		socket.connected = false;
-		socket.destroyed = true;
-	}
-
-	fs.access(ipcPath, fs.constants.F_OK, (err) =>
-	{
-		if(err) return cb(err);
-
-		fs.unlink(ipcPath, cb);
-	});
-}
-
-function connectWeb(socket, httpPort, cb)
-{
-	timeout = setTimeout(() => timeout = null, 10000);
-
-	waitWebServer = function()
+	_waitWebServer(httpPort, cb)
 	{
 		helper.httpRequest({ nodebug: true, port: httpPort }, err =>
 		{
 			if(err && timeout)
-				return setTimeout(() => waitWebServer(), 500);
+				return setTimeout(() => this._waitWebServer(httpPort, cb), 500);
 			else if(err)
 				return cb(new Error('Web server connect timeout'));
 
@@ -165,18 +206,20 @@ function connectWeb(socket, httpPort, cb)
 				timeout = null;
 			}
 
-			socket.connected = true;
+			this.connected = true;
+			debug('Web server connected');
+
 			cb(null);
 		});
 	}
 
-	waitWebServer();
-}
+	_disconnectWeb()
+	{
+		debug('Web server disconnected');
 
-function disconnectWeb()
-{
-	if(!timeout) return;
+		if(!timeout) return;
 
-	clearTimeout(timeout);
-	timeout = null;
+		clearTimeout(timeout);
+		timeout = null;
+	}
 }

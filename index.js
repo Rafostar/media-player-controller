@@ -1,8 +1,7 @@
 const fs = require('fs');
-const net = require('net');
 const { spawn } = require('child_process');
 const debug = require('debug')('mpc');
-const socket = require('./socket');
+const PlayerSocket = require('./socket');
 
 const noop = () => {};
 const playersArray = fs.readdirSync(__dirname + '/players');
@@ -20,15 +19,13 @@ const defaults = {
 
 var players = importPlayers();
 
-module.exports = class PlayerController extends net.Socket
+module.exports = class PlayerController extends PlayerSocket
 {
 	constructor(options)
 	{
 		super();
 
 		if(!(options instanceof Object)) options = {};
-		this.connected = false;
-		this.destroyed = false;
 		this.opts = { ...defaults, ...options };
 		this.process = null;
 		this.prevProbeAt = null;
@@ -83,7 +80,7 @@ module.exports = class PlayerController extends net.Socket
 
 		debug('Player media source:', launchOpts.media);
 
-		socket.connect(this, launchOpts, (err) =>
+		this.connectSocket(launchOpts, (err) =>
 		{
 			/*
 			  Callback on error and success
@@ -186,7 +183,7 @@ module.exports = class PlayerController extends net.Socket
 			if(this.cleanup && typeof this.cleanup === 'function')
 				this.cleanup();
 
-			socket.disconnect(this, launchOpts, (err) =>
+			this.disconnectSocket(launchOpts, (err) =>
 			{
 				if(err) this.emit('app-error', err);
 
