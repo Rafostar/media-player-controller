@@ -150,19 +150,11 @@ module.exports = class PlayerController extends PlayerSocket
 		this.process.stdout.setEncoding('utf8');
 		this.process.stdout.setNoDelay(true);
 
-		const stdoutDebug = function(stdoutData)
-		{
-			if(debug.enabled)
-				debug(stdoutData);
-		}
-
-		this.process.stdout.on('data', stdoutDebug);
+		if(debug.enabled)
+			this.process.stdout.on('data', debug);
 
 		this.process.once('exit', (code) =>
 		{
-			if(this.process.stdout)
-				this.process.stdout.removeListener('data', stdoutDebug);
-
 			this.process = null;
 			debug('Media player process exit');
 
@@ -217,6 +209,9 @@ module.exports = class PlayerController extends PlayerSocket
 
 		if(this.process)
 		{
+			if(debug.enabled && this.process.stdout)
+				this.process.stdout.removeListener('data', debug);
+
 			this._playerQuit(err =>
 			{
 				if(!err)
