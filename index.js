@@ -1,10 +1,13 @@
 const fs = require('fs');
+const path = require('path');
 const { spawn } = require('child_process');
 const debug = require('debug')('mpc');
 const PlayerSocket = require('./socket');
 
 const noop = () => {};
-const playersArray = fs.readdirSync(__dirname + '/players');
+const playersArray = fs.readdirSync(
+	path.join(__dirname, 'players')
+);
 
 const defaults = {
 	app: 'mpv',
