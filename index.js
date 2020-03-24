@@ -136,25 +136,35 @@ module.exports = class PlayerController extends PlayerSocket
 
 		const spawnArgs = this._getSpawnArgs(launchOpts);
 
-		try {
-			this.process = spawn(this._app, spawnArgs, spawnOpts);
-		}
-		catch(err) {
+		const onSpawnError = (err) =>
+		{
+			if(!this.process.pid)
+				this.process = null;
+
 			debug(err);
 
 			if(called) return;
 
 			called = true;
-			return cb(err);
+			cb(err);
 		}
 
-		debug('Spawned new player process');
+		try {
+			this.process = spawn(this._app, spawnArgs, spawnOpts);
+		}
+		catch(err) {
+			onSpawnError(err);
+		}
 
+		this.process.once('error', onSpawnError);
 		this.process.stdout.setEncoding('utf8');
 		this.process.stdout.setNoDelay(true);
 
 		if(debug.enabled)
+		{
 			this.process.stdout.on('data', debug);
+			debug('Spawned new player process');
+		}
 
 		this.process.once('exit', (code) =>
 		{
