@@ -88,7 +88,7 @@ module.exports = class PlayerSocket extends net.Socket
 
 		if(!fs.existsSync(this.ipcPath))
 		{
-			fs.writeFileSync(this.ipcPath);
+			fs.writeFileSync(this.ipcPath, '');
 			debug(`Created new socket file: ${this.ipcPath}`);
 		}
 
