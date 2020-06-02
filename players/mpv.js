@@ -12,6 +12,7 @@ module.exports =
 		this.command(['observe_property', 3, 'pause']);
 		this.command(['observe_property', 4, 'duration']);
 		this.command(['observe_property', 5, 'eof-reached']);
+		this.command(['observe_property', 6, 'speed']);
 	},
 
 	_connectType: 'socket',
@@ -77,6 +78,12 @@ module.exports =
 	{
 		cb = cb || noop;
 		this.command(['set_property', 'volume', value * 100], cb);
+	},
+
+	setSpeed: function(value, cb)
+	{
+		cb = cb || noop;
+		this.command(['set_property', 'speed', value], cb);
 	},
 
 	setRepeat: function(isEnabled, cb)
@@ -207,6 +214,7 @@ module.exports =
 				case 'duration':
 				case 'pause':
 				case 'eof-reached':
+				case 'speed':
 					value = msg.data;
 					break;
 				default:
