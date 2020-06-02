@@ -107,6 +107,12 @@ module.exports =
 		this.command(['volume', value * 256], cb);
 	},
 
+	setSpeed: function(value, cb)
+	{
+		cb = cb || noop;
+		cb(new Error('VLC speed control is not implemented'));
+	},
+
 	setRepeat: function(isEnabled, cb)
 	{
 		cb = cb || noop;

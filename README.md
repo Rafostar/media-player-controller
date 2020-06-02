@@ -42,6 +42,7 @@ Currrently `mpv` and `vlc` media players are supported.
 .load(mediaPath)             // Load new media file (without closing player)
 .seek(position)              // Seek to position (value in seconds)
 .setVolume(value)            // Adjust player volume (value 0-100)
+.setSpeed(value)             // Adjust playback speed
 .setRepeat(isEnabled)        // Repeat playback (true or false)
 .cycleVideo()                // Switch active video track
 .cycleAudio()                // Switch active audio track
