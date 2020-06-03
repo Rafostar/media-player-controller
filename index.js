@@ -310,5 +310,8 @@ function importPlayers()
 		playersObject[playerName] = require(`./players/${playerName}`);
 	});
 
+	/* Additionally support "cvlc" with "vlc" module */
+	if(playersObject.vlc) playersObject.cvlc = playersObject.vlc;
+
 	return playersObject;
 }
