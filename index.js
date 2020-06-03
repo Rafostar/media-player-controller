@@ -220,25 +220,23 @@ module.exports = class PlayerController extends PlayerSocket
 	{
 		cb = cb || noop;
 
-		if(this.process)
-		{
-			if(debug.enabled && this.process.stdout)
-				this.process.stdout.removeListener('data', debug);
-
-			this._playerQuit(err =>
-			{
-				if(!err)
-				{
-					debug('Stopped media player process');
-					return cb(null);
-				}
-
-				debug('Killing media player process...');
-				this._killPlayer(cb);
-			});
-		}
-		else
+		if(!this.process)
 			return cb(new Error('No open player process found!'));
+
+		if(debug.enabled && this.process.stdout)
+			this.process.stdout.removeListener('data', debug);
+
+		this._playerQuit(err =>
+		{
+			if(!err)
+			{
+				debug('Stopped media player process');
+				return cb(null);
+			}
+
+			debug('Killing media player process...');
+			this._killPlayer(cb);
+		});
 	}
 
 	_getProbeTime(isPlaying, currTime)
