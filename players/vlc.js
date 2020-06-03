@@ -336,7 +336,9 @@ module.exports =
 	setSpeed: function(value, cb)
 	{
 		cb = cb || noop;
-		cb(new Error('VLC speed control is not implemented'));
+		value = (value > 0) ? value : 1;
+
+		this.command(['rate', `val=${value}`], cb);
 	},
 
 	setRepeat: function(isEnabled, cb)
