@@ -1,3 +1,4 @@
+const debug = require('debug')('mpc:mpv');
 const noop = () => {};
 var prevPosition;
 
@@ -41,6 +42,7 @@ module.exports =
 		try { command = JSON.stringify({ command: params }); }
 		catch(err) { return cb(err); }
 
+		debug(`command: ${command}`);
 		this.write(command + '\n', cb);
 	},
 
@@ -222,7 +224,10 @@ module.exports =
 			}
 
 			if(value !== null)
+			{
+				debug(`property changed: ${msg.name} -> ${value}`);
 				this.emit('playback', { name: msg.name, value: value });
+			}
 		}
 	}
 }
