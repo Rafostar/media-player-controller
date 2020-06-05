@@ -9,10 +9,11 @@ var playerData =
 	'volume': 'volume',
 	'duration': 'length',
 	'pause': 'state',
+	'speed': 'rate',
 	'eof-reached': 'state'
 };
 
-/* Prevent emiting 'eof-reached' at launch */
+/* Prevent emitting 'eof-reached' at launch */
 var launched = false;
 var loading = false;
 var streams;
@@ -53,7 +54,7 @@ module.exports =
 				this._parseRequest(result);
 
 				var isPlaying = (result.state === 'playing');
-				time = this._getProbeTime(isPlaying, result.time);
+				time = this._getProbeTime(isPlaying, result.time, result.rate);
 			}
 
 			if(this._intervalEnabled)
@@ -87,6 +88,11 @@ module.exports =
 					value = Math.round(value / 2.56) / 100;
 					if(value < 0)
 						continue;
+					break;
+				case 'speed':
+					value = Number(parseFloat(value).toFixed(2));
+					if(previous.speed && previous.speed != value)
+						this._onSpeedChanged(value);
 					break;
 				default:
 					if(value == 'true')
@@ -218,7 +224,7 @@ module.exports =
 			{
 				if(err) return cb(err);
 
-				this.emit('debug-player', command);
+				this._debug(command);
 				this._parseRequest(result);
 
 				cb(null);
