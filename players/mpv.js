@@ -13,6 +13,7 @@ module.exports =
 		this.command(['observe_property', 4, 'duration']);
 		this.command(['observe_property', 5, 'eof-reached']);
 		this.command(['observe_property', 6, 'speed']);
+		this.command(['observe_property', 7, 'media-title']);
 	},
 
 	_connectType: 'socket',
@@ -216,6 +217,7 @@ module.exports =
 				case 'pause':
 				case 'eof-reached':
 				case 'speed':
+				case 'media-title':
 					value = msg.data;
 					break;
 				default:
