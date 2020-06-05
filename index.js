@@ -33,12 +33,10 @@ module.exports = class PlayerController extends PlayerSocket
 		this.process = null;
 		this.prevProbeAt = null;
 		this.probeTime = 950;
+		this._debug = debug;
 
 		if(debug.enabled)
-		{
 			this.on('playback', debug);
-			this.on('debug-player', debug);
-		}
 	}
 
 	launch(cb)
@@ -242,7 +240,7 @@ module.exports = class PlayerController extends PlayerSocket
 		});
 	}
 
-	_getProbeTime(isPlaying, currTime)
+	_getProbeTime(isPlaying, currTime, speed)
 	{
 		if(!isPlaying || !currTime)
 			return 1000;
@@ -252,13 +250,13 @@ module.exports = class PlayerController extends PlayerSocket
 
 		if(this.prevProbeAt == currTime)
 		{
-			if(this.probeTime < 1100)
+			if(this.probeTime < 1100 / speed)
 				this.probeTime += 10;
 
 			return 50;
 		}
-		else
-			this.probeTime -= 10;
+
+		this.probeTime -= 10;
 
 		debug(`Next probe in: ${this.probeTime}ms`);
 		this.prevProbeAt = currTime;
@@ -298,6 +296,11 @@ module.exports = class PlayerController extends PlayerSocket
 		}
 
 		cb(null);
+	}
+
+	_onSpeedChanged(speed)
+	{
+		this.probeTime = parseInt(950 / speed);
 	}
 }
 
