@@ -41,6 +41,7 @@ module.exports =
 		try { command = JSON.stringify({ command: params }); }
 		catch(err) { return cb(err); }
 
+		this.emit('debug-player', command);
 		this.write(command + '\n', cb);
 	},
 

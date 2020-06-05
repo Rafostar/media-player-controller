@@ -218,7 +218,9 @@ module.exports =
 			{
 				if(err) return cb(err);
 
+				this.emit('debug-player', command);
 				this._parseRequest(result);
+
 				cb(null);
 			});
 		});

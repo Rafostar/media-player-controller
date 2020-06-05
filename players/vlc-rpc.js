@@ -65,6 +65,7 @@ module.exports =
 		try { command = Object.values(params).join(' '); }
 		catch(err) { return cb(err); }
 
+		this.emit('debug-player', command);
 		this.write(command + '\n', cb);
 	},
 

@@ -35,7 +35,10 @@ module.exports = class PlayerController extends PlayerSocket
 		this.probeTime = 950;
 
 		if(debug.enabled)
+		{
 			this.on('playback', debug);
+			this.on('debug-player', debug);
+		}
 	}
 
 	launch(cb)
