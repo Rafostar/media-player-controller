@@ -7,31 +7,33 @@
 
 Spawn media player app and control playback. Also allows reading player state through socket or web connection.
 
-### Usage Example
+## Supported Media Players
+
+|   Player   | Linux |  Win  | MacOS |
+| :--------: | :---: | :---: | :---: |
+|  **mpv**   |  yes  |  no   |   ?   |
+|  **vlc**   |  yes  |  yes  |   ?   |
+
+  ? - untested (feedback is welcome)
+
+### Player config
 ```javascript
-const PlayerController = require('media-player-controller');
-
-var player = new PlayerController({ app: 'mpv' });
-
-/* Path to file or link. Can be changed anytime without creating new player objects */
-player.opts.media = 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
-
-player.launch(err =>
-{
-  if(err) {
-    console.error(err.message);
-  }
-});
-
-player.on('playback', console.log);
+var player = new PlayerController({
+	app: 'mpv',                        // Media player name to use (mpv/vlc)
+	args: [],                          // Player command line args (array of strings)
+	cwd: null,                         // Current working dir for media player spawn
+	media: '/path/to/video.mp4',       // Media to load on player launch (required)
+	ipcPath: '/tmp/media-ctl-socket',  // Path to socket connection file (mpv only)
+	httpPort: 9280,                    // HTTP port for local communication (vlc only)
+	httpPass: null,                    // HTTP login password (vlc only, defaults to player name)
+	detached: false                    // Spawn player as detached process
+};
 ```
 
+### Player functions
 Each playback controlling function have an optional callback with eventual `error`.<br>
-They are executed asynchronously by default.
+They are executed asynchronously by default and can be used after `playback-started` event.
 
-Currrently `mpv` and `vlc` media players are supported.
-
-### List of available functions
 ```javascript
 .launch()                    // Launch media player
 .quit()                      // Stop media player process
@@ -42,23 +44,54 @@ Currrently `mpv` and `vlc` media players are supported.
 .load(mediaPath)             // Load new media file (without closing player)
 .seek(position)              // Seek to position (value in seconds)
 .setVolume(value)            // Adjust player volume (value 0-100)
-.setSpeed(value)             // Adjust playback speed
+.setSpeed(value)             // Adjust playback speed (normal: 1.0)
 .setRepeat(isEnabled)        // Repeat playback (true or false)
 .cycleVideo()                // Switch active video track
 .cycleAudio()                // Switch active audio track
 .cycleSubs()                 // Switch active subtitle track
+.addSubs()                   // Add subtitles to currently playing video
 .setFullscreen(isEnabled)    // Enable or disable fullscreen (true or false)
 .cycleFullscreen()           // Toggle fullscreen on/off
 .keepOpen(isEnabled)         // Keep player open after playback (true or false)
 
-.command([args])             // Custom command for IPC socket (array of args)
+.command([args])             // Custom command for IPC/HTTP (array of args)
 ```
 
-### List of available events
+Please note that some commands are not yet implemented for every player (most of them are).
+If a command is not available for currently used player, callback will return error with a message saying so.
+
+### Available events
 ```javascript
 .on('app-launch')            // Emited on media player app launch
+.on('playback-started')      // Playback started and player can now be controlled
 .on('playback', data)        // Data object with current playback event
 .on('app-exit', code)        // Exit code emited on media player app close
+```
+
+## Usage Example
+```javascript
+const PlayerController = require('media-player-controller');
+
+var player = new PlayerController({
+  app: 'mpv',
+  args: ['--fullscreen'],
+  media: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
+});
+
+player.on('playback', console.log);
+
+player.on('playback-started', () => {
+  console.log('Playback started. Player can now be controlled');
+});
+
+player.on('app-exit', (code) => {
+  console.log(`Media player closed. Exit code: ${code}`);
+});
+
+player.launch(err => {
+  if(err) return console.error(err.message);
+  console.log('Media player launched');
+});
 ```
 
 ## Donation
