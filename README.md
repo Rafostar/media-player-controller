@@ -19,15 +19,15 @@ Spawn media player app and control playback. Also allows reading player state th
 ### Player config
 ```javascript
 var player = new PlayerController({
-	app: 'mpv',                        // Media player name to use (mpv/vlc)
-	args: [],                          // Player command line args (array of strings)
-	cwd: null,                         // Current working dir for media player spawn
-	media: '/path/to/video.mp4',       // Media to load on player launch (required)
-	ipcPath: '/tmp/media-ctl-socket',  // Path to socket connection file (mpv only)
-	httpPort: 9280,                    // HTTP port for local communication (vlc only)
-	httpPass: null,                    // HTTP login password (vlc only, defaults to player name)
-	detached: false                    // Spawn player as detached process
-};
+  app: 'mpv',                         // Media player name to use (mpv/vlc)
+  args: [],                           // Player command line args (array of strings)
+  cwd: null,                          // Current working dir for media player spawn
+  media: '/path/to/video.mp4',        // Media to load on player launch (required)
+  ipcPath: '/tmp/media-ctl-socket',   // Path to socket connection file (mpv only)
+  httpPort: 9280,                     // HTTP port for local communication (vlc only)
+  httpPass: null,                     // HTTP login password (vlc only, defaults to player name)
+  detached: false                     // Spawn player as detached process
+});
 ```
 
 ### Player functions
