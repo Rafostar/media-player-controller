@@ -43,13 +43,13 @@ They are executed asynchronously by default and can be used after `playback-star
 .cyclePause()                // Cycle play/pause
 .load(mediaPath)             // Load new media file (without closing player)
 .seek(position)              // Seek to position (value in seconds)
-.setVolume(value)            // Adjust player volume (value 0-100)
+.setVolume(value)            // Adjust player volume (value 0-1)
 .setSpeed(value)             // Adjust playback speed (normal: 1.0)
 .setRepeat(isEnabled)        // Repeat playback (true or false)
 .cycleVideo()                // Switch active video track
 .cycleAudio()                // Switch active audio track
 .cycleSubs()                 // Switch active subtitle track
-.addSubs()                   // Add subtitles to currently playing video
+.addSubs(subsPath)           // Add subtitles to currently playing video
 .setFullscreen(isEnabled)    // Enable or disable fullscreen (true or false)
 .cycleFullscreen()           // Toggle fullscreen on/off
 .keepOpen(isEnabled)         // Keep player open after playback (true or false)
