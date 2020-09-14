@@ -139,7 +139,7 @@ module.exports = class PlayerController extends PlayerSocket
 
 		const onSpawnError = (err) =>
 		{
-			if(!this.process.pid)
+			if(this.process && !this.process.pid)
 				this.process = null;
 
 			debug(err);
