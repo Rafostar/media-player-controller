@@ -69,9 +69,16 @@ module.exports = class PlayerController extends PlayerSocket
 		this._app = player._app || launchOpts.app;
 		this._forceEnglish = player._forceEnglish || false;
 
-		debug(`Launching ${this._app}...`);
+		if(launchOpts.cwd && !fs.existsSync(path.join(launchOpts.cwd, this._app)))
+		{
+			/* On MacOS player might be named with capital letters */
+			this._app = this._app.toUpperCase();
 
-		var called = false;
+			if(!fs.existsSync(path.join(launchOpts.cwd, this._app)))
+				return cb(new Error(`No player binary found in: "${launchOpts.cwd}"`));
+		}
+
+		debug(`Launching ${this._app}...`);
 
 		if(typeof launchOpts.ipcPath !== 'string' || !launchOpts.ipcPath.length)
 			return cb(new Error('No IPC socket path provided!'));
@@ -83,6 +90,7 @@ module.exports = class PlayerController extends PlayerSocket
 			return cb(new Error('No media source provided!'));
 
 		debug('Player media source:', launchOpts.media);
+		var called = false;
 
 		this.connectSocket(launchOpts, (err) =>
 		{
